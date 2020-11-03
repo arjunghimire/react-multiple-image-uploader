@@ -10,6 +10,7 @@
     "url": "https://code4ever.com"
   },
   "license": "MIT",
+  "publishConfig": { "registry": "https://npm.pkg.github.com/" },
   "dependencies": {
     "antd": "^4.7.3",
     "prop-types": "^15.7.2",
