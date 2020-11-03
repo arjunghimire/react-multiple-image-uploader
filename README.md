@@ -25,11 +25,13 @@ yarn add react-multiple-image-uploader
 
 ## Screenshot
 
-![React Multiple Image Uploader](https://im6.ezgif.com/tmp/ezgif-6-c523cd5ce856.gif)
+<p align="center">
+  <img src="screenshot/image.gif" alt="React Multiple Image Uploader" />
+</p>
 
 ## Example
 
-```
+```js
 import { useState } from "react";
 import { RMIUploader } from "react-multiple-image-uploader";
 
@@ -106,7 +108,6 @@ function App() {
     </div>
   );
 }
-
 
 export default App;
 ```
