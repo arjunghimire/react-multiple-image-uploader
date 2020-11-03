@@ -1,0 +1,58 @@
+{
+  "name": "react-multiple-image-uploader",
+  "version": "1.0.0",
+  "description": "A react component for uploading and preview multiple images",
+  "main": "./build/index.js",
+  "module": "./build/index.es.js",
+  "author":{
+    "name": "Arjun Ghimire",
+    "email": "arjunghimire0714@gmail.com",
+    "url": "https://code4ever.com"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "antd": "^4.7.3",
+    "prop-types": "^15.7.2",
+    "react-images-uploading": "^3.1.2"
+  },
+  "peerDependencies": {
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.11.6",
+    "@rollup/plugin-commonjs": "^16.0.0",
+    "@rollup/plugin-node-resolve": "^10.0.0",
+    "@testing-library/jest-dom": "^5.11.4",
+    "@testing-library/react": "^11.0.4",
+    "@types/jest": "^26.0.14",
+    "@types/node": "^14.11.2",
+    "@types/react": "^16.9.55",
+    "@types/testing-library__jest-dom": "^5.9.3",
+    "@types/testing-library__react": "^10.2.0",
+    "@typescript-eslint/eslint-plugin": "^4.3.0",
+    "@typescript-eslint/parser": "^4.3.0",
+    "babel-loader": "^8.1.0",
+    "eslint": "^7.10.0",
+    "eslint-config-prettier": "^6.12.0",
+    "eslint-plugin-jest": "^24.0.2",
+    "eslint-plugin-prettier": "^3.1.4",
+    "eslint-plugin-react": "^7.21.2",
+    "fork-ts-checker-webpack-plugin": "^5.2.0",
+    "jest": "^26.4.2",
+    "node-sass": "^4.14.1",
+    "prettier": "^2.1.2",
+    "rollup": "^2.28.2",
+    "rollup-plugin-peer-deps-external": "^2.2.3",
+    "rollup-plugin-postcss": "^3.1.8",
+    "rollup-plugin-typescript2": "^0.28.0",
+    "ts-jest": "^26.4.0",
+    "ts-loader": "^8.0.4",
+    "typescript": "^4.0.3"
+  },
+  "scripts": {
+    "build": "rollup -c --watch",
+    "lint": "eslint 'src/**/*.{js,ts,tsx}' --quiet --fix",
+    "test": "jest"
+  }
+}

@@ -1,0 +1,14 @@
+.upload-container {
+  cursor: pointer;
+  text-align: center;
+  padding: 20px;
+  margin: 20px;
+  border: 2px dashed #f0f0f0 !important;
+  svg {
+    width: 100px;
+    height: 40px;
+  }
+}
+.upload-drag {
+  border: 2px dashed #096dd9 !important;
+}

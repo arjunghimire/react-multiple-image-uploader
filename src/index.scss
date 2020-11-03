@@ -1,0 +1,28 @@
+.media-library {
+  height: 230px;
+  overflow: auto;
+  display: flex;
+  margin: 20px;
+  border: 2px dashed #f0f0f0 !important;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.upload-image-preview {
+  margin: 20px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
