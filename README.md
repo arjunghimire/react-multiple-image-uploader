@@ -5,6 +5,8 @@ A react component for uploading and preview multiple images
 ## Table of Contents
 
 - [Installation](#installation)
+- [Features](#features)
+- [Screenshot](#screenshot)
 - [Usage](#usage)
 - [Support](#support)
 - [Contributing](#contributing)
@@ -23,11 +25,17 @@ Yarn
 yarn add react-multiple-image-uploader
 ```
 
+## Features
+
+- Mutiple images upload
+- Drag and drop
+- Collection of previos images
+- Deletion of previous image
+- Preview selected image
+
 ## Screenshot
 
-<p align="center">
-  <img src="screenshot/image.gif" alt="React Multiple Image Uploader" />
-</p>
+![React Multiple Image Uploader](screenshot/image.gif?raw=true "React Multiple Image Uploader")
 
 ## Example
 
@@ -77,6 +85,7 @@ const dataSources = [
     dataURL: "https://picsum.photos/seed/10/600",
   },
 ];
+
 function App() {
   const [visible, setVisible] = useState(false);
   const handleSetVisible = () => {
@@ -104,6 +113,7 @@ function App() {
         onSelect={onSelect}
         onUpload={onUpload}
         onRemove={onRemove}
+        dataSources={dataSources}
       />
     </div>
   );
@@ -111,6 +121,8 @@ function App() {
 
 export default App;
 ```
+
+Note: dataSources should be correct format (with id and dataURL)
 
 ## Props
 

@@ -46,7 +46,7 @@ const RMIUploader: React.FC<RMIUploaderProps> = ({
   const maxNumber = 69;
 
   const onChange = (imageList: ImageListType) => {
-    if (imageList.length > 9) {
+    if (imageList.length > 7) {
       message.warn(warnMessage);
     } else {
       setImages(imageList as never[]);
@@ -124,12 +124,12 @@ const RMIUploader: React.FC<RMIUploaderProps> = ({
                   />
                   <div className="upload-image-preview">
                     <Row>
-                      <Col md={20}>
+                      <Col md={19}>
                         {images.map((image, index) => (
                           <CImage key={index} url={image.dataURL} />
                         ))}
                       </Col>
-                      <Col md={4}>
+                      <Col md={5}>
                         <Button
                           type="primary"
                           danger
