@@ -1,4 +1,4 @@
-import { DeleteOutlined } from "@ant-design/icons";
+import { CloseOutlined } from "@ant-design/icons";
 import { Button } from "antd";
 import PropTypes from "prop-types";
 import React from "react";
@@ -29,7 +29,7 @@ const CCard: React.FC<CCardProps> = ({
         danger
         onClick={onRemove}
         shape="circle"
-        icon={<DeleteOutlined />}
+        icon={<CloseOutlined />}
       />
     </div>
   </div>

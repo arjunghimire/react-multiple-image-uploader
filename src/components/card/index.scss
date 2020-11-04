@@ -28,7 +28,7 @@
     border: 1px solid #0073aa;
     position: absolute;
     top: -5px;
-    right: -5px;
+    left: -5px;
     width: 25px;
     height: 25px;
     text-align: center;
@@ -63,11 +63,10 @@
 
   .options {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    right: auto;
+    top: 8px;
+    right: 12px;
+    z-index: 1;
     bottom: auto;
-    margin-right: -50%;
-    transform: translate(-50%, -50%);
+    margin-right: 0;
   }
 }
