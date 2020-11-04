@@ -16208,8 +16208,8 @@ var RMIUploader = function (_a) {
                             React__default['default'].createElement(CUpload, { dragProps: dragProps, isDragging: isDragging, onImageUpload: onImageUpload }),
                             React__default['default'].createElement("div", { className: "upload-image-preview" },
                                 React__default['default'].createElement(Row, null,
-                                    React__default['default'].createElement(Col, { md: 19 }, images.map(function (image, index) { return (React__default['default'].createElement(CImage, { key: index, url: image.dataURL })); })),
-                                    React__default['default'].createElement(Col, { md: 5 },
+                                    React__default['default'].createElement(Col, { md: 18 }, images.map(function (image, index) { return (React__default['default'].createElement(CImage, { key: index, url: image.dataURL })); })),
+                                    React__default['default'].createElement(Col, { md: 6 },
                                         React__default['default'].createElement(Button, { type: "primary", danger: true, style: {
                                                 marginRight: 5,
                                             }, disabled: greaterZeroUpload, onClick: function () { return setImages([]); }, icon: React__default['default'].createElement(CloseOutlined$2, null), size: "middle" }),

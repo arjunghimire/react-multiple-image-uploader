@@ -124,12 +124,12 @@ const RMIUploader: React.FC<RMIUploaderProps> = ({
                   />
                   <div className="upload-image-preview">
                     <Row>
-                      <Col md={19}>
+                      <Col md={18}>
                         {images.map((image, index) => (
                           <CImage key={index} url={image.dataURL} />
                         ))}
                       </Col>
-                      <Col md={5}>
+                      <Col md={6}>
                         <Button
                           type="primary"
                           danger

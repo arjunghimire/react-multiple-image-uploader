@@ -16199,8 +16199,8 @@ var RMIUploader = function (_a) {
                             React.createElement(CUpload, { dragProps: dragProps, isDragging: isDragging, onImageUpload: onImageUpload }),
                             React.createElement("div", { className: "upload-image-preview" },
                                 React.createElement(Row, null,
-                                    React.createElement(Col, { md: 19 }, images.map(function (image, index) { return (React.createElement(CImage, { key: index, url: image.dataURL })); })),
-                                    React.createElement(Col, { md: 5 },
+                                    React.createElement(Col, { md: 18 }, images.map(function (image, index) { return (React.createElement(CImage, { key: index, url: image.dataURL })); })),
+                                    React.createElement(Col, { md: 6 },
                                         React.createElement(Button, { type: "primary", danger: true, style: {
                                                 marginRight: 5,
                                             }, disabled: greaterZeroUpload, onClick: function () { return setImages([]); }, icon: React.createElement(CloseOutlined$2, null), size: "middle" }),
