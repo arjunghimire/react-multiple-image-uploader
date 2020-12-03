@@ -1,6 +1,6 @@
 {
   "name": "react-multiple-image-uploader",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "homepage": "https://github.com/arjunghimire/react-multiple-image-uploader",
   "description": "A react component for uploading and preview multiple images",
   "main": "./dist/index.js",

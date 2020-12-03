@@ -22,19 +22,17 @@
  */
 
 import { CloseOutlined, CloudUploadOutlined } from "@ant-design/icons";
-import { Button, Col, message, Row } from "antd";
+import { Button, Card, Col, Divider, message, Row } from "antd";
 import "antd/dist/antd.css";
 import PropTypes from "prop-types";
 import React, { useState } from "react";
 import ImageUploading, { ImageListType } from "react-images-uploading";
-import { CCard, CImage, CModal, CUpload } from "./components";
+import { CCard, CImage, CUpload } from "./components";
 import "./index.scss";
 import RMIUploaderProps from "./types";
 import imagesData from "./utils";
 
 const RMIUploader: React.FC<RMIUploaderProps> = ({
-  isOpen,
-  hideModal,
   onUpload,
   onSelect,
   onRemove,
@@ -71,128 +69,120 @@ const RMIUploader: React.FC<RMIUploaderProps> = ({
 
   const onClear = () => {
     setSelectedImages([]);
+    setImages([]);
   };
   const greaterZeroUpload = images.length > 0 ? false : true;
   const greaterZeroMedia = selectedImages.length > 0 ? false : true;
   return (
-    <>
-      <CModal
-        footer={
-          <Row>
-            <Col md={14}>
-              {selectedImages.map((image, index) => (
-                <CImage key={index} url={image.dataURL} />
-              ))}
-            </Col>
-            <Col md={10}>
-              <Button
-                disabled={greaterZeroMedia}
-                onClick={onClear}
-                type="primary"
-                danger
-              >
-                Clear ({selectedImages.length})
-              </Button>
-              <Button
-                onClick={() => onSelect(selectedImages)}
-                disabled={greaterZeroMedia}
-                type="primary"
-              >
-                Insert into post
-              </Button>
-            </Col>
-          </Row>
-        }
-        title="Insert Media"
-        visible={isOpen}
-        onCancel={hideModal}
-      >
-        <Row>
-          <Col span={10}>
-            <ImageUploading
-              multiple
-              value={images}
-              onChange={onChange}
-              maxNumber={maxNumber}
-            >
-              {({ onImageUpload, isDragging, dragProps }) => (
-                <div className="upload__image-wrapper">
-                  <CUpload
-                    dragProps={dragProps}
-                    isDragging={isDragging}
-                    onImageUpload={onImageUpload}
-                  />
-                  <div className="upload-image-preview">
-                    <Row>
-                      <Col md={18}>
-                        {images.map((image, index) => (
-                          <CImage key={index} url={image.dataURL} />
-                        ))}
-                      </Col>
-                      <Col md={6}>
-                        <Button
-                          type="primary"
-                          danger
-                          style={{
-                            marginRight: 5,
-                          }}
-                          disabled={greaterZeroUpload}
-                          onClick={() => setImages([])}
-                          icon={<CloseOutlined />}
-                          size="middle"
-                        />
-                        <Button
-                          disabled={greaterZeroUpload}
-                          type="primary"
-                          onClick={() => onUpload(images)}
-                          icon={<CloudUploadOutlined />}
-                          size="middle"
-                        />
-                      </Col>
-                    </Row>
-                  </div>
+    <Card>
+      <Row>
+        <Col span={10}>
+          <ImageUploading
+            multiple
+            value={images}
+            onChange={onChange}
+            maxNumber={maxNumber}
+          >
+            {({ onImageUpload, isDragging, dragProps }) => (
+              <div className="upload__image-wrapper">
+                <CUpload
+                  dragProps={dragProps}
+                  isDragging={isDragging}
+                  onImageUpload={onImageUpload}
+                />
+                <div className="upload-image-preview">
+                  <Row>
+                    <Col md={18}>
+                      {images.map((image, index) => (
+                        <CImage key={index} url={image.dataURL} />
+                      ))}
+                    </Col>
+                    <Col md={6}>
+                      <Button
+                        type="primary"
+                        danger
+                        style={{
+                          marginRight: 5,
+                        }}
+                        disabled={greaterZeroUpload}
+                        onClick={() => setImages([])}
+                        icon={<CloseOutlined />}
+                        size="middle"
+                      />
+                      <Button
+                        disabled={greaterZeroUpload}
+                        type="primary"
+                        onClick={() => onUpload(images)}
+                        icon={<CloudUploadOutlined />}
+                        size="middle"
+                      />
+                    </Col>
+                  </Row>
                 </div>
-              )}
-            </ImageUploading>
-          </Col>
-          <Col span={14}>
-            <div className="media-library">
-              {dataSources.map((img, index) => {
-                const includeImage = selectedImages.find(
-                  (image) => image.index === index,
-                );
-                return (
-                  <CCard
-                    index={index}
-                    key={index}
-                    checked={includeImage && includeImage.id}
-                    onRemove={() => onRemove(img.id)}
-                    onChange={(e) =>
-                      onSelectImage(e.target.checked, index, img.dataURL, img)
-                    }
-                    imageURL={img.dataURL}
-                  />
-                );
-              })}
-            </div>
-          </Col>
-        </Row>
-      </CModal>
-    </>
+              </div>
+            )}
+          </ImageUploading>
+        </Col>
+        <Col span={14}>
+          <div className="media-library">
+            {dataSources.map((img, index) => {
+              const includeImage = selectedImages.find((image) => {
+                return image.index === index ? true : false;
+              });
+              return (
+                <CCard
+                  index={index}
+                  key={index}
+                  checked={includeImage}
+                  onRemove={() => onRemove(img.id)}
+                  onChange={(e) =>
+                    onSelectImage(e.target.checked, index, img.dataURL, img)
+                  }
+                  imageURL={img.dataURL}
+                />
+              );
+            })}
+          </div>
+        </Col>
+        <Divider />
+      </Row>
+      <Row>
+        <Col md={18}>
+          {selectedImages.map((image, index) => (
+            <CImage key={index} url={image.dataURL} />
+          ))}
+        </Col>
+        <Col md={6}>
+          <Button
+            disabled={greaterZeroMedia}
+            onClick={onClear}
+            type="primary"
+            danger
+          >
+            Clear ({selectedImages.length})
+          </Button>{" "}
+          &nbsp;&nbsp;
+          <Button
+            onClick={() => onSelect(selectedImages)}
+            disabled={greaterZeroMedia}
+            type="primary"
+          >
+            Insert into post
+          </Button>
+        </Col>
+      </Row>
+    </Card>
   );
 };
 
 RMIUploader.defaultProps = {
-  isOpen: false,
   dataSources: imagesData,
   warnMessage: "Number of selected images exceed maxNumber",
 };
 
 RMIUploader.propTypes = {
-  isOpen: PropTypes.bool,
   onUpload: PropTypes.func,
   onSelect: PropTypes.func,
-  hideModal: PropTypes.func,
   warnMessage: PropTypes.string,
   dataSources: PropTypes.array,
   onRemove: PropTypes.func,
