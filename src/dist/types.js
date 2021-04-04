@@ -1,3 +1,4 @@
+"use strict";
 /*
  *   Copyright (c) 2020 Arjun Ghimire (arjunghimire0714@gmail.com)
  *   All rights reserved.
@@ -20,14 +21,4 @@
  *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  *   SOFTWARE.
  */
-
-interface CModalProps {
-  title?: string | JSX.Element;
-  footer?: JSX.Element;
-  visible?: boolean;
-  onCancel?: () => void;
-  onOk?: () => void;
-  children?: JSX.Element;
-}
-
-export default CModalProps;
+exports.__esModule = true;

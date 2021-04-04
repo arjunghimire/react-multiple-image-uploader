@@ -8,7 +8,7 @@ interface RIUploaderProps {
     onUpload: (e: any) => void;
     onSelect: (e: any) => void;
     onRemove: (e: any) => void;
-    warnMessage: string;
+    warnMessage?: string;
     dataSources: DataSource[];
 }
 export default RIUploaderProps;
