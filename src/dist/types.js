@@ -1,3 +1,4 @@
+"use strict";
 /*
  *   Copyright (c) 2020 Arjun Ghimire (arjunghimire0714@gmail.com)
  *   All rights reserved.
@@ -20,20 +21,4 @@
  *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  *   SOFTWARE.
  */
-
-interface DataSource {
-  id: number;
-  dataURL: string;
-}
-
-interface RIUploaderProps {
-  isOpen: boolean;
-  hideModal: () => void;
-  onUpload: (e) => void;
-  onSelect: (e) => void;
-  onRemove: (e) => void;
-  warnMessage?: string;
-  dataSources: DataSource[];
-}
-
-export default RIUploaderProps;
+exports.__esModule = true;

@@ -44,6 +44,8 @@ function __spreadArrays() {
     return r;
 }
 
+var IconContext = /*#__PURE__*/React.createContext({});
+
 function _arrayWithHoles(arr) {
   if (Array.isArray(arr)) return arr;
 }
@@ -167,13 +169,28 @@ function createCommonjsModule(fn, basedir, module) {
 	}, fn(module, module.exports), module.exports;
 }
 
+function getAugmentedNamespace(n) {
+	if (n.__esModule) return n;
+	var a = Object.defineProperty({}, '__esModule', {value: true});
+	Object.keys(n).forEach(function (k) {
+		var d = Object.getOwnPropertyDescriptor(n, k);
+		Object.defineProperty(a, k, d.get ? d : {
+			enumerable: true,
+			get: function () {
+				return n[k];
+			}
+		});
+	});
+	return a;
+}
+
 function commonjsRequire () {
 	throw new Error('Dynamic requires are not currently supported by @rollup/plugin-commonjs');
 }
 
 var classnames = createCommonjsModule(function (module) {
 /*!
-  Copyright (c) 2017 Jed Watson.
+  Copyright (c) 2018 Jed Watson.
   Licensed under the MIT License (MIT), see
   http://jedwatson.github.io/classnames
 */
@@ -183,7 +200,7 @@ var classnames = createCommonjsModule(function (module) {
 
 	var hasOwn = {}.hasOwnProperty;
 
-	function classNames () {
+	function classNames() {
 		var classes = [];
 
 		for (var i = 0; i < arguments.length; i++) {
@@ -194,16 +211,22 @@ var classnames = createCommonjsModule(function (module) {
 
 			if (argType === 'string' || argType === 'number') {
 				classes.push(arg);
-			} else if (Array.isArray(arg) && arg.length) {
-				var inner = classNames.apply(null, arg);
-				if (inner) {
-					classes.push(inner);
+			} else if (Array.isArray(arg)) {
+				if (arg.length) {
+					var inner = classNames.apply(null, arg);
+					if (inner) {
+						classes.push(inner);
+					}
 				}
 			} else if (argType === 'object') {
-				for (var key in arg) {
-					if (hasOwn.call(arg, key) && arg[key]) {
-						classes.push(key);
+				if (arg.toString === Object.prototype.toString) {
+					for (var key in arg) {
+						if (hasOwn.call(arg, key) && arg[key]) {
+							classes.push(key);
+						}
 					}
+				} else {
+					classes.push(arg.toString());
 				}
 			}
 		}
@@ -270,313 +293,403 @@ function _typeof(obj) {
   return _typeof(obj);
 }
 
-var tinycolor = createCommonjsModule(function (module) {
-// TinyColor v1.4.2
-// https://github.com/bgrins/TinyColor
-// Brian Grinstead, MIT License
-
-(function(Math) {
-
-var trimLeft = /^\s+/,
-    trimRight = /\s+$/,
-    tinyCounter = 0,
-    mathRound = Math.round,
-    mathMin = Math.min,
-    mathMax = Math.max,
-    mathRandom = Math.random;
-
-function tinycolor (color, opts) {
-
-    color = (color) ? color : '';
-    opts = opts || { };
-
-    // If input is already a tinycolor, return itself
-    if (color instanceof tinycolor) {
-       return color;
+/**
+ * Take input from [0, n] and return it as [0, 1]
+ * @hidden
+ */
+function bound01(n, max) {
+    if (isOnePointZero(n)) {
+        n = '100%';
     }
-    // If we are called as a function, call using new instead
-    if (!(this instanceof tinycolor)) {
-        return new tinycolor(color, opts);
+    var isPercent = isPercentage(n);
+    n = max === 360 ? n : Math.min(max, Math.max(0, parseFloat(n)));
+    // Automatically convert percentage into number
+    if (isPercent) {
+        n = parseInt(String(n * max), 10) / 100;
     }
-
-    var rgb = inputToRGB(color);
-    this._originalInput = color,
-    this._r = rgb.r,
-    this._g = rgb.g,
-    this._b = rgb.b,
-    this._a = rgb.a,
-    this._roundA = mathRound(100*this._a) / 100,
-    this._format = opts.format || rgb.format;
-    this._gradientType = opts.gradientType;
-
-    // Don't let the range of [0,255] come back in [0,1].
-    // Potentially lose a little bit of precision here, but will fix issues where
-    // .5 gets interpreted as half of the total, instead of half of 1
-    // If it was supposed to be 128, this was already taken care of by `inputToRgb`
-    if (this._r < 1) { this._r = mathRound(this._r); }
-    if (this._g < 1) { this._g = mathRound(this._g); }
-    if (this._b < 1) { this._b = mathRound(this._b); }
-
-    this._ok = rgb.ok;
-    this._tc_id = tinyCounter++;
+    // Handle floating point rounding errors
+    if (Math.abs(n - max) < 0.000001) {
+        return 1;
+    }
+    // Convert into [0, 1] range if it isn't already
+    if (max === 360) {
+        // If n is a hue given in degrees,
+        // wrap around out-of-range values into [0, 360] range
+        // then convert into [0, 1].
+        n = (n < 0 ? (n % max) + max : n % max) / parseFloat(String(max));
+    }
+    else {
+        // If n not a hue given in degrees
+        // Convert into [0, 1] range if it isn't already.
+        n = (n % max) / parseFloat(String(max));
+    }
+    return n;
+}
+/**
+ * Need to handle 1.0 as 100%, since once it is a number, there is no difference between it and 1
+ * <http://stackoverflow.com/questions/7422072/javascript-how-to-detect-number-as-a-decimal-including-1-0>
+ * @hidden
+ */
+function isOnePointZero(n) {
+    return typeof n === 'string' && n.indexOf('.') !== -1 && parseFloat(n) === 1;
+}
+/**
+ * Check to see if string passed in is a percentage
+ * @hidden
+ */
+function isPercentage(n) {
+    return typeof n === 'string' && n.indexOf('%') !== -1;
+}
+/**
+ * Return a valid alpha value [0,1] with all invalid values being set to 1
+ * @hidden
+ */
+function boundAlpha(a) {
+    a = parseFloat(a);
+    if (isNaN(a) || a < 0 || a > 1) {
+        a = 1;
+    }
+    return a;
+}
+/**
+ * Replace a decimal with it's percentage value
+ * @hidden
+ */
+function convertToPercentage(n) {
+    if (n <= 1) {
+        return Number(n) * 100 + "%";
+    }
+    return n;
+}
+/**
+ * Force a hex value to have 2 characters
+ * @hidden
+ */
+function pad2(c) {
+    return c.length === 1 ? '0' + c : String(c);
 }
 
-tinycolor.prototype = {
-    isDark: function() {
-        return this.getBrightness() < 128;
-    },
-    isLight: function() {
-        return !this.isDark();
-    },
-    isValid: function() {
-        return this._ok;
-    },
-    getOriginalInput: function() {
-      return this._originalInput;
-    },
-    getFormat: function() {
-        return this._format;
-    },
-    getAlpha: function() {
-        return this._a;
-    },
-    getBrightness: function() {
-        //http://www.w3.org/TR/AERT#color-contrast
-        var rgb = this.toRgb();
-        return (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-    },
-    getLuminance: function() {
-        //http://www.w3.org/TR/2008/REC-WCAG20-20081211/#relativeluminancedef
-        var rgb = this.toRgb();
-        var RsRGB, GsRGB, BsRGB, R, G, B;
-        RsRGB = rgb.r/255;
-        GsRGB = rgb.g/255;
-        BsRGB = rgb.b/255;
-
-        if (RsRGB <= 0.03928) {R = RsRGB / 12.92;} else {R = Math.pow(((RsRGB + 0.055) / 1.055), 2.4);}
-        if (GsRGB <= 0.03928) {G = GsRGB / 12.92;} else {G = Math.pow(((GsRGB + 0.055) / 1.055), 2.4);}
-        if (BsRGB <= 0.03928) {B = BsRGB / 12.92;} else {B = Math.pow(((BsRGB + 0.055) / 1.055), 2.4);}
-        return (0.2126 * R) + (0.7152 * G) + (0.0722 * B);
-    },
-    setAlpha: function(value) {
-        this._a = boundAlpha(value);
-        this._roundA = mathRound(100*this._a) / 100;
-        return this;
-    },
-    toHsv: function() {
-        var hsv = rgbToHsv(this._r, this._g, this._b);
-        return { h: hsv.h * 360, s: hsv.s, v: hsv.v, a: this._a };
-    },
-    toHsvString: function() {
-        var hsv = rgbToHsv(this._r, this._g, this._b);
-        var h = mathRound(hsv.h * 360), s = mathRound(hsv.s * 100), v = mathRound(hsv.v * 100);
-        return (this._a == 1) ?
-          "hsv("  + h + ", " + s + "%, " + v + "%)" :
-          "hsva(" + h + ", " + s + "%, " + v + "%, "+ this._roundA + ")";
-    },
-    toHsl: function() {
-        var hsl = rgbToHsl(this._r, this._g, this._b);
-        return { h: hsl.h * 360, s: hsl.s, l: hsl.l, a: this._a };
-    },
-    toHslString: function() {
-        var hsl = rgbToHsl(this._r, this._g, this._b);
-        var h = mathRound(hsl.h * 360), s = mathRound(hsl.s * 100), l = mathRound(hsl.l * 100);
-        return (this._a == 1) ?
-          "hsl("  + h + ", " + s + "%, " + l + "%)" :
-          "hsla(" + h + ", " + s + "%, " + l + "%, "+ this._roundA + ")";
-    },
-    toHex: function(allow3Char) {
-        return rgbToHex(this._r, this._g, this._b, allow3Char);
-    },
-    toHexString: function(allow3Char) {
-        return '#' + this.toHex(allow3Char);
-    },
-    toHex8: function(allow4Char) {
-        return rgbaToHex(this._r, this._g, this._b, this._a, allow4Char);
-    },
-    toHex8String: function(allow4Char) {
-        return '#' + this.toHex8(allow4Char);
-    },
-    toRgb: function() {
-        return { r: mathRound(this._r), g: mathRound(this._g), b: mathRound(this._b), a: this._a };
-    },
-    toRgbString: function() {
-        return (this._a == 1) ?
-          "rgb("  + mathRound(this._r) + ", " + mathRound(this._g) + ", " + mathRound(this._b) + ")" :
-          "rgba(" + mathRound(this._r) + ", " + mathRound(this._g) + ", " + mathRound(this._b) + ", " + this._roundA + ")";
-    },
-    toPercentageRgb: function() {
-        return { r: mathRound(bound01(this._r, 255) * 100) + "%", g: mathRound(bound01(this._g, 255) * 100) + "%", b: mathRound(bound01(this._b, 255) * 100) + "%", a: this._a };
-    },
-    toPercentageRgbString: function() {
-        return (this._a == 1) ?
-          "rgb("  + mathRound(bound01(this._r, 255) * 100) + "%, " + mathRound(bound01(this._g, 255) * 100) + "%, " + mathRound(bound01(this._b, 255) * 100) + "%)" :
-          "rgba(" + mathRound(bound01(this._r, 255) * 100) + "%, " + mathRound(bound01(this._g, 255) * 100) + "%, " + mathRound(bound01(this._b, 255) * 100) + "%, " + this._roundA + ")";
-    },
-    toName: function() {
-        if (this._a === 0) {
-            return "transparent";
-        }
-
-        if (this._a < 1) {
-            return false;
-        }
-
-        return hexNames[rgbToHex(this._r, this._g, this._b, true)] || false;
-    },
-    toFilter: function(secondColor) {
-        var hex8String = '#' + rgbaToArgbHex(this._r, this._g, this._b, this._a);
-        var secondHex8String = hex8String;
-        var gradientType = this._gradientType ? "GradientType = 1, " : "";
-
-        if (secondColor) {
-            var s = tinycolor(secondColor);
-            secondHex8String = '#' + rgbaToArgbHex(s._r, s._g, s._b, s._a);
-        }
-
-        return "progid:DXImageTransform.Microsoft.gradient("+gradientType+"startColorstr="+hex8String+",endColorstr="+secondHex8String+")";
-    },
-    toString: function(format) {
-        var formatSet = !!format;
-        format = format || this._format;
-
-        var formattedString = false;
-        var hasAlpha = this._a < 1 && this._a >= 0;
-        var needsAlphaFormat = !formatSet && hasAlpha && (format === "hex" || format === "hex6" || format === "hex3" || format === "hex4" || format === "hex8" || format === "name");
-
-        if (needsAlphaFormat) {
-            // Special case for "transparent", all other non-alpha formats
-            // will return rgba when there is transparency.
-            if (format === "name" && this._a === 0) {
-                return this.toName();
-            }
-            return this.toRgbString();
-        }
-        if (format === "rgb") {
-            formattedString = this.toRgbString();
-        }
-        if (format === "prgb") {
-            formattedString = this.toPercentageRgbString();
-        }
-        if (format === "hex" || format === "hex6") {
-            formattedString = this.toHexString();
-        }
-        if (format === "hex3") {
-            formattedString = this.toHexString(true);
-        }
-        if (format === "hex4") {
-            formattedString = this.toHex8String(true);
-        }
-        if (format === "hex8") {
-            formattedString = this.toHex8String();
-        }
-        if (format === "name") {
-            formattedString = this.toName();
-        }
-        if (format === "hsl") {
-            formattedString = this.toHslString();
-        }
-        if (format === "hsv") {
-            formattedString = this.toHsvString();
-        }
-
-        return formattedString || this.toHexString();
-    },
-    clone: function() {
-        return tinycolor(this.toString());
-    },
-
-    _applyModification: function(fn, args) {
-        var color = fn.apply(null, [this].concat([].slice.call(args)));
-        this._r = color._r;
-        this._g = color._g;
-        this._b = color._b;
-        this.setAlpha(color._a);
-        return this;
-    },
-    lighten: function() {
-        return this._applyModification(lighten, arguments);
-    },
-    brighten: function() {
-        return this._applyModification(brighten, arguments);
-    },
-    darken: function() {
-        return this._applyModification(darken, arguments);
-    },
-    desaturate: function() {
-        return this._applyModification(desaturate, arguments);
-    },
-    saturate: function() {
-        return this._applyModification(saturate, arguments);
-    },
-    greyscale: function() {
-        return this._applyModification(greyscale, arguments);
-    },
-    spin: function() {
-        return this._applyModification(spin, arguments);
-    },
-
-    _applyCombination: function(fn, args) {
-        return fn.apply(null, [this].concat([].slice.call(args)));
-    },
-    analogous: function() {
-        return this._applyCombination(analogous, arguments);
-    },
-    complement: function() {
-        return this._applyCombination(complement, arguments);
-    },
-    monochromatic: function() {
-        return this._applyCombination(monochromatic, arguments);
-    },
-    splitcomplement: function() {
-        return this._applyCombination(splitcomplement, arguments);
-    },
-    triad: function() {
-        return this._applyCombination(triad, arguments);
-    },
-    tetrad: function() {
-        return this._applyCombination(tetrad, arguments);
+// `rgbToHsl`, `rgbToHsv`, `hslToRgb`, `hsvToRgb` modified from:
+// <http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript>
+/**
+ * Handle bounds / percentage checking to conform to CSS color spec
+ * <http://www.w3.org/TR/css3-color/>
+ * *Assumes:* r, g, b in [0, 255] or [0, 1]
+ * *Returns:* { r, g, b } in [0, 255]
+ */
+function rgbToRgb(r, g, b) {
+    return {
+        r: bound01(r, 255) * 255,
+        g: bound01(g, 255) * 255,
+        b: bound01(b, 255) * 255,
+    };
+}
+function hue2rgb(p, q, t) {
+    if (t < 0) {
+        t += 1;
     }
+    if (t > 1) {
+        t -= 1;
+    }
+    if (t < 1 / 6) {
+        return p + (q - p) * (6 * t);
+    }
+    if (t < 1 / 2) {
+        return q;
+    }
+    if (t < 2 / 3) {
+        return p + (q - p) * (2 / 3 - t) * 6;
+    }
+    return p;
+}
+/**
+ * Converts an HSL color value to RGB.
+ *
+ * *Assumes:* h is contained in [0, 1] or [0, 360] and s and l are contained [0, 1] or [0, 100]
+ * *Returns:* { r, g, b } in the set [0, 255]
+ */
+function hslToRgb(h, s, l) {
+    var r;
+    var g;
+    var b;
+    h = bound01(h, 360);
+    s = bound01(s, 100);
+    l = bound01(l, 100);
+    if (s === 0) {
+        // achromatic
+        g = l;
+        b = l;
+        r = l;
+    }
+    else {
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return { r: r * 255, g: g * 255, b: b * 255 };
+}
+/**
+ * Converts an RGB color value to HSV
+ *
+ * *Assumes:* r, g, and b are contained in the set [0, 255] or [0, 1]
+ * *Returns:* { h, s, v } in [0,1]
+ */
+function rgbToHsv(r, g, b) {
+    r = bound01(r, 255);
+    g = bound01(g, 255);
+    b = bound01(b, 255);
+    var max = Math.max(r, g, b);
+    var min = Math.min(r, g, b);
+    var h = 0;
+    var v = max;
+    var d = max - min;
+    var s = max === 0 ? 0 : d / max;
+    if (max === min) {
+        h = 0; // achromatic
+    }
+    else {
+        switch (max) {
+            case r:
+                h = (g - b) / d + (g < b ? 6 : 0);
+                break;
+            case g:
+                h = (b - r) / d + 2;
+                break;
+            case b:
+                h = (r - g) / d + 4;
+                break;
+        }
+        h /= 6;
+    }
+    return { h: h, s: s, v: v };
+}
+/**
+ * Converts an HSV color value to RGB.
+ *
+ * *Assumes:* h is contained in [0, 1] or [0, 360] and s and v are contained in [0, 1] or [0, 100]
+ * *Returns:* { r, g, b } in the set [0, 255]
+ */
+function hsvToRgb(h, s, v) {
+    h = bound01(h, 360) * 6;
+    s = bound01(s, 100);
+    v = bound01(v, 100);
+    var i = Math.floor(h);
+    var f = h - i;
+    var p = v * (1 - s);
+    var q = v * (1 - f * s);
+    var t = v * (1 - (1 - f) * s);
+    var mod = i % 6;
+    var r = [v, q, p, p, t, v][mod];
+    var g = [t, v, v, q, p, p][mod];
+    var b = [p, p, t, v, v, q][mod];
+    return { r: r * 255, g: g * 255, b: b * 255 };
+}
+/**
+ * Converts an RGB color to hex
+ *
+ * Assumes r, g, and b are contained in the set [0, 255]
+ * Returns a 3 or 6 character hex
+ */
+function rgbToHex(r, g, b, allow3Char) {
+    var hex = [
+        pad2(Math.round(r).toString(16)),
+        pad2(Math.round(g).toString(16)),
+        pad2(Math.round(b).toString(16)),
+    ];
+    // Return a 3 character hex if possible
+    if (allow3Char &&
+        hex[0].startsWith(hex[0].charAt(1)) &&
+        hex[1].startsWith(hex[1].charAt(1)) &&
+        hex[2].startsWith(hex[2].charAt(1))) {
+        return hex[0].charAt(0) + hex[1].charAt(0) + hex[2].charAt(0);
+    }
+    return hex.join('');
+}
+/** Converts a hex value to a decimal */
+function convertHexToDecimal(h) {
+    return parseIntFromHex(h) / 255;
+}
+/** Parse a base-16 hex value into a base-10 integer */
+function parseIntFromHex(val) {
+    return parseInt(val, 16);
+}
+
+// https://github.com/bahamas10/css-color-names/blob/master/css-color-names.json
+/**
+ * @hidden
+ */
+var names = {
+    aliceblue: '#f0f8ff',
+    antiquewhite: '#faebd7',
+    aqua: '#00ffff',
+    aquamarine: '#7fffd4',
+    azure: '#f0ffff',
+    beige: '#f5f5dc',
+    bisque: '#ffe4c4',
+    black: '#000000',
+    blanchedalmond: '#ffebcd',
+    blue: '#0000ff',
+    blueviolet: '#8a2be2',
+    brown: '#a52a2a',
+    burlywood: '#deb887',
+    cadetblue: '#5f9ea0',
+    chartreuse: '#7fff00',
+    chocolate: '#d2691e',
+    coral: '#ff7f50',
+    cornflowerblue: '#6495ed',
+    cornsilk: '#fff8dc',
+    crimson: '#dc143c',
+    cyan: '#00ffff',
+    darkblue: '#00008b',
+    darkcyan: '#008b8b',
+    darkgoldenrod: '#b8860b',
+    darkgray: '#a9a9a9',
+    darkgreen: '#006400',
+    darkgrey: '#a9a9a9',
+    darkkhaki: '#bdb76b',
+    darkmagenta: '#8b008b',
+    darkolivegreen: '#556b2f',
+    darkorange: '#ff8c00',
+    darkorchid: '#9932cc',
+    darkred: '#8b0000',
+    darksalmon: '#e9967a',
+    darkseagreen: '#8fbc8f',
+    darkslateblue: '#483d8b',
+    darkslategray: '#2f4f4f',
+    darkslategrey: '#2f4f4f',
+    darkturquoise: '#00ced1',
+    darkviolet: '#9400d3',
+    deeppink: '#ff1493',
+    deepskyblue: '#00bfff',
+    dimgray: '#696969',
+    dimgrey: '#696969',
+    dodgerblue: '#1e90ff',
+    firebrick: '#b22222',
+    floralwhite: '#fffaf0',
+    forestgreen: '#228b22',
+    fuchsia: '#ff00ff',
+    gainsboro: '#dcdcdc',
+    ghostwhite: '#f8f8ff',
+    goldenrod: '#daa520',
+    gold: '#ffd700',
+    gray: '#808080',
+    green: '#008000',
+    greenyellow: '#adff2f',
+    grey: '#808080',
+    honeydew: '#f0fff0',
+    hotpink: '#ff69b4',
+    indianred: '#cd5c5c',
+    indigo: '#4b0082',
+    ivory: '#fffff0',
+    khaki: '#f0e68c',
+    lavenderblush: '#fff0f5',
+    lavender: '#e6e6fa',
+    lawngreen: '#7cfc00',
+    lemonchiffon: '#fffacd',
+    lightblue: '#add8e6',
+    lightcoral: '#f08080',
+    lightcyan: '#e0ffff',
+    lightgoldenrodyellow: '#fafad2',
+    lightgray: '#d3d3d3',
+    lightgreen: '#90ee90',
+    lightgrey: '#d3d3d3',
+    lightpink: '#ffb6c1',
+    lightsalmon: '#ffa07a',
+    lightseagreen: '#20b2aa',
+    lightskyblue: '#87cefa',
+    lightslategray: '#778899',
+    lightslategrey: '#778899',
+    lightsteelblue: '#b0c4de',
+    lightyellow: '#ffffe0',
+    lime: '#00ff00',
+    limegreen: '#32cd32',
+    linen: '#faf0e6',
+    magenta: '#ff00ff',
+    maroon: '#800000',
+    mediumaquamarine: '#66cdaa',
+    mediumblue: '#0000cd',
+    mediumorchid: '#ba55d3',
+    mediumpurple: '#9370db',
+    mediumseagreen: '#3cb371',
+    mediumslateblue: '#7b68ee',
+    mediumspringgreen: '#00fa9a',
+    mediumturquoise: '#48d1cc',
+    mediumvioletred: '#c71585',
+    midnightblue: '#191970',
+    mintcream: '#f5fffa',
+    mistyrose: '#ffe4e1',
+    moccasin: '#ffe4b5',
+    navajowhite: '#ffdead',
+    navy: '#000080',
+    oldlace: '#fdf5e6',
+    olive: '#808000',
+    olivedrab: '#6b8e23',
+    orange: '#ffa500',
+    orangered: '#ff4500',
+    orchid: '#da70d6',
+    palegoldenrod: '#eee8aa',
+    palegreen: '#98fb98',
+    paleturquoise: '#afeeee',
+    palevioletred: '#db7093',
+    papayawhip: '#ffefd5',
+    peachpuff: '#ffdab9',
+    peru: '#cd853f',
+    pink: '#ffc0cb',
+    plum: '#dda0dd',
+    powderblue: '#b0e0e6',
+    purple: '#800080',
+    rebeccapurple: '#663399',
+    red: '#ff0000',
+    rosybrown: '#bc8f8f',
+    royalblue: '#4169e1',
+    saddlebrown: '#8b4513',
+    salmon: '#fa8072',
+    sandybrown: '#f4a460',
+    seagreen: '#2e8b57',
+    seashell: '#fff5ee',
+    sienna: '#a0522d',
+    silver: '#c0c0c0',
+    skyblue: '#87ceeb',
+    slateblue: '#6a5acd',
+    slategray: '#708090',
+    slategrey: '#708090',
+    snow: '#fffafa',
+    springgreen: '#00ff7f',
+    steelblue: '#4682b4',
+    tan: '#d2b48c',
+    teal: '#008080',
+    thistle: '#d8bfd8',
+    tomato: '#ff6347',
+    turquoise: '#40e0d0',
+    violet: '#ee82ee',
+    wheat: '#f5deb3',
+    white: '#ffffff',
+    whitesmoke: '#f5f5f5',
+    yellow: '#ffff00',
+    yellowgreen: '#9acd32',
 };
 
-// If input is an object, force 1 into "1.0" to handle ratios properly
-// String input requires "1.0" as input, so 1 will be treated as 1
-tinycolor.fromRatio = function(color, opts) {
-    if (typeof color == "object") {
-        var newColor = {};
-        for (var i in color) {
-            if (color.hasOwnProperty(i)) {
-                if (i === "a") {
-                    newColor[i] = color[i];
-                }
-                else {
-                    newColor[i] = convertToPercentage(color[i]);
-                }
-            }
-        }
-        color = newColor;
-    }
-
-    return tinycolor(color, opts);
-};
-
-// Given a string or object, convert that input to RGB
-// Possible string inputs:
-//
-//     "red"
-//     "#f00" or "f00"
-//     "#ff0000" or "ff0000"
-//     "#ff000000" or "ff000000"
-//     "rgb 255 0 0" or "rgb (255, 0, 0)"
-//     "rgb 1.0 0 0" or "rgb (1, 0, 0)"
-//     "rgba (255, 0, 0, 1)" or "rgba 255, 0, 0, 1"
-//     "rgba (1.0, 0, 0, 1)" or "rgba 1.0, 0, 0, 1"
-//     "hsl(0, 100%, 50%)" or "hsl 0 100% 50%"
-//     "hsla(0, 100%, 50%, 1)" or "hsla 0 100% 50%, 1"
-//     "hsv(0, 100%, 100%)" or "hsv 0 100% 100%"
-//
+/**
+ * Given a string or object, convert that input to RGB
+ *
+ * Possible string inputs:
+ * ```
+ * "red"
+ * "#f00" or "f00"
+ * "#ff0000" or "ff0000"
+ * "#ff000000" or "ff000000"
+ * "rgb 255 0 0" or "rgb (255, 0, 0)"
+ * "rgb 1.0 0 0" or "rgb (1, 0, 0)"
+ * "rgba (255, 0, 0, 1)" or "rgba 255, 0, 0, 1"
+ * "rgba (1.0, 0, 0, 1)" or "rgba 1.0, 0, 0, 1"
+ * "hsl(0, 100%, 50%)" or "hsl 0 100% 50%"
+ * "hsla(0, 100%, 50%, 1)" or "hsla 0 100% 50%, 1"
+ * "hsv(0, 100%, 100%)" or "hsv 0 100% 100%"
+ * ```
+ */
 function inputToRGB(color) {
-
     var rgb = { r: 0, g: 0, b: 0 };
     var a = 1;
     var s = null;
@@ -584,1032 +697,411 @@ function inputToRGB(color) {
     var l = null;
     var ok = false;
     var format = false;
-
-    if (typeof color == "string") {
+    if (typeof color === 'string') {
         color = stringInputToObject(color);
     }
-
-    if (typeof color == "object") {
+    if (typeof color === 'object') {
         if (isValidCSSUnit(color.r) && isValidCSSUnit(color.g) && isValidCSSUnit(color.b)) {
             rgb = rgbToRgb(color.r, color.g, color.b);
             ok = true;
-            format = String(color.r).substr(-1) === "%" ? "prgb" : "rgb";
+            format = String(color.r).substr(-1) === '%' ? 'prgb' : 'rgb';
         }
         else if (isValidCSSUnit(color.h) && isValidCSSUnit(color.s) && isValidCSSUnit(color.v)) {
             s = convertToPercentage(color.s);
             v = convertToPercentage(color.v);
             rgb = hsvToRgb(color.h, s, v);
             ok = true;
-            format = "hsv";
+            format = 'hsv';
         }
         else if (isValidCSSUnit(color.h) && isValidCSSUnit(color.s) && isValidCSSUnit(color.l)) {
             s = convertToPercentage(color.s);
             l = convertToPercentage(color.l);
             rgb = hslToRgb(color.h, s, l);
             ok = true;
-            format = "hsl";
+            format = 'hsl';
         }
-
-        if (color.hasOwnProperty("a")) {
+        if (Object.prototype.hasOwnProperty.call(color, 'a')) {
             a = color.a;
         }
     }
-
     a = boundAlpha(a);
-
     return {
         ok: ok,
         format: color.format || format,
-        r: mathMin(255, mathMax(rgb.r, 0)),
-        g: mathMin(255, mathMax(rgb.g, 0)),
-        b: mathMin(255, mathMax(rgb.b, 0)),
-        a: a
+        r: Math.min(255, Math.max(rgb.r, 0)),
+        g: Math.min(255, Math.max(rgb.g, 0)),
+        b: Math.min(255, Math.max(rgb.b, 0)),
+        a: a,
     };
 }
-
-
-// Conversion Functions
-// --------------------
-
-// `rgbToHsl`, `rgbToHsv`, `hslToRgb`, `hsvToRgb` modified from:
-// <http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript>
-
-// `rgbToRgb`
-// Handle bounds / percentage checking to conform to CSS color spec
-// <http://www.w3.org/TR/css3-color/>
-// *Assumes:* r, g, b in [0, 255] or [0, 1]
-// *Returns:* { r, g, b } in [0, 255]
-function rgbToRgb(r, g, b){
-    return {
-        r: bound01(r, 255) * 255,
-        g: bound01(g, 255) * 255,
-        b: bound01(b, 255) * 255
-    };
-}
-
-// `rgbToHsl`
-// Converts an RGB color value to HSL.
-// *Assumes:* r, g, and b are contained in [0, 255] or [0, 1]
-// *Returns:* { h, s, l } in [0,1]
-function rgbToHsl(r, g, b) {
-
-    r = bound01(r, 255);
-    g = bound01(g, 255);
-    b = bound01(b, 255);
-
-    var max = mathMax(r, g, b), min = mathMin(r, g, b);
-    var h, s, l = (max + min) / 2;
-
-    if(max == min) {
-        h = s = 0; // achromatic
-    }
-    else {
-        var d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        switch(max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-        }
-
-        h /= 6;
-    }
-
-    return { h: h, s: s, l: l };
-}
-
-// `hslToRgb`
-// Converts an HSL color value to RGB.
-// *Assumes:* h is contained in [0, 1] or [0, 360] and s and l are contained [0, 1] or [0, 100]
-// *Returns:* { r, g, b } in the set [0, 255]
-function hslToRgb(h, s, l) {
-    var r, g, b;
-
-    h = bound01(h, 360);
-    s = bound01(s, 100);
-    l = bound01(l, 100);
-
-    function hue2rgb(p, q, t) {
-        if(t < 0) t += 1;
-        if(t > 1) t -= 1;
-        if(t < 1/6) return p + (q - p) * 6 * t;
-        if(t < 1/2) return q;
-        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-        return p;
-    }
-
-    if(s === 0) {
-        r = g = b = l; // achromatic
-    }
-    else {
-        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        var p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-    }
-
-    return { r: r * 255, g: g * 255, b: b * 255 };
-}
-
-// `rgbToHsv`
-// Converts an RGB color value to HSV
-// *Assumes:* r, g, and b are contained in the set [0, 255] or [0, 1]
-// *Returns:* { h, s, v } in [0,1]
-function rgbToHsv(r, g, b) {
-
-    r = bound01(r, 255);
-    g = bound01(g, 255);
-    b = bound01(b, 255);
-
-    var max = mathMax(r, g, b), min = mathMin(r, g, b);
-    var h, s, v = max;
-
-    var d = max - min;
-    s = max === 0 ? 0 : d / max;
-
-    if(max == min) {
-        h = 0; // achromatic
-    }
-    else {
-        switch(max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-        }
-        h /= 6;
-    }
-    return { h: h, s: s, v: v };
-}
-
-// `hsvToRgb`
-// Converts an HSV color value to RGB.
-// *Assumes:* h is contained in [0, 1] or [0, 360] and s and v are contained in [0, 1] or [0, 100]
-// *Returns:* { r, g, b } in the set [0, 255]
- function hsvToRgb(h, s, v) {
-
-    h = bound01(h, 360) * 6;
-    s = bound01(s, 100);
-    v = bound01(v, 100);
-
-    var i = Math.floor(h),
-        f = h - i,
-        p = v * (1 - s),
-        q = v * (1 - f * s),
-        t = v * (1 - (1 - f) * s),
-        mod = i % 6,
-        r = [v, q, p, p, t, v][mod],
-        g = [t, v, v, q, p, p][mod],
-        b = [p, p, t, v, v, q][mod];
-
-    return { r: r * 255, g: g * 255, b: b * 255 };
-}
-
-// `rgbToHex`
-// Converts an RGB color to hex
-// Assumes r, g, and b are contained in the set [0, 255]
-// Returns a 3 or 6 character hex
-function rgbToHex(r, g, b, allow3Char) {
-
-    var hex = [
-        pad2(mathRound(r).toString(16)),
-        pad2(mathRound(g).toString(16)),
-        pad2(mathRound(b).toString(16))
-    ];
-
-    // Return a 3 character hex if possible
-    if (allow3Char && hex[0].charAt(0) == hex[0].charAt(1) && hex[1].charAt(0) == hex[1].charAt(1) && hex[2].charAt(0) == hex[2].charAt(1)) {
-        return hex[0].charAt(0) + hex[1].charAt(0) + hex[2].charAt(0);
-    }
-
-    return hex.join("");
-}
-
-// `rgbaToHex`
-// Converts an RGBA color plus alpha transparency to hex
-// Assumes r, g, b are contained in the set [0, 255] and
-// a in [0, 1]. Returns a 4 or 8 character rgba hex
-function rgbaToHex(r, g, b, a, allow4Char) {
-
-    var hex = [
-        pad2(mathRound(r).toString(16)),
-        pad2(mathRound(g).toString(16)),
-        pad2(mathRound(b).toString(16)),
-        pad2(convertDecimalToHex(a))
-    ];
-
-    // Return a 4 character hex if possible
-    if (allow4Char && hex[0].charAt(0) == hex[0].charAt(1) && hex[1].charAt(0) == hex[1].charAt(1) && hex[2].charAt(0) == hex[2].charAt(1) && hex[3].charAt(0) == hex[3].charAt(1)) {
-        return hex[0].charAt(0) + hex[1].charAt(0) + hex[2].charAt(0) + hex[3].charAt(0);
-    }
-
-    return hex.join("");
-}
-
-// `rgbaToArgbHex`
-// Converts an RGBA color to an ARGB Hex8 string
-// Rarely used, but required for "toFilter()"
-function rgbaToArgbHex(r, g, b, a) {
-
-    var hex = [
-        pad2(convertDecimalToHex(a)),
-        pad2(mathRound(r).toString(16)),
-        pad2(mathRound(g).toString(16)),
-        pad2(mathRound(b).toString(16))
-    ];
-
-    return hex.join("");
-}
-
-// `equals`
-// Can be called with any tinycolor input
-tinycolor.equals = function (color1, color2) {
-    if (!color1 || !color2) { return false; }
-    return tinycolor(color1).toRgbString() == tinycolor(color2).toRgbString();
+// <http://www.w3.org/TR/css3-values/#integers>
+var CSS_INTEGER = '[-\\+]?\\d+%?';
+// <http://www.w3.org/TR/css3-values/#number-value>
+var CSS_NUMBER = '[-\\+]?\\d*\\.\\d+%?';
+// Allow positive/negative integer/number.  Don't capture the either/or, just the entire outcome.
+var CSS_UNIT = "(?:" + CSS_NUMBER + ")|(?:" + CSS_INTEGER + ")";
+// Actual matching.
+// Parentheses and commas are optional, but not required.
+// Whitespace can take the place of commas or opening paren
+var PERMISSIVE_MATCH3 = "[\\s|\\(]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")\\s*\\)?";
+var PERMISSIVE_MATCH4 = "[\\s|\\(]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")\\s*\\)?";
+var matchers = {
+    CSS_UNIT: new RegExp(CSS_UNIT),
+    rgb: new RegExp('rgb' + PERMISSIVE_MATCH3),
+    rgba: new RegExp('rgba' + PERMISSIVE_MATCH4),
+    hsl: new RegExp('hsl' + PERMISSIVE_MATCH3),
+    hsla: new RegExp('hsla' + PERMISSIVE_MATCH4),
+    hsv: new RegExp('hsv' + PERMISSIVE_MATCH3),
+    hsva: new RegExp('hsva' + PERMISSIVE_MATCH4),
+    hex3: /^#?([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})$/,
+    hex6: /^#?([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/,
+    hex4: /^#?([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})$/,
+    hex8: /^#?([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/,
 };
-
-tinycolor.random = function() {
-    return tinycolor.fromRatio({
-        r: mathRandom(),
-        g: mathRandom(),
-        b: mathRandom()
-    });
-};
-
-
-// Modification Functions
-// ----------------------
-// Thanks to less.js for some of the basics here
-// <https://github.com/cloudhead/less.js/blob/master/lib/less/functions.js>
-
-function desaturate(color, amount) {
-    amount = (amount === 0) ? 0 : (amount || 10);
-    var hsl = tinycolor(color).toHsl();
-    hsl.s -= amount / 100;
-    hsl.s = clamp01(hsl.s);
-    return tinycolor(hsl);
-}
-
-function saturate(color, amount) {
-    amount = (amount === 0) ? 0 : (amount || 10);
-    var hsl = tinycolor(color).toHsl();
-    hsl.s += amount / 100;
-    hsl.s = clamp01(hsl.s);
-    return tinycolor(hsl);
-}
-
-function greyscale(color) {
-    return tinycolor(color).desaturate(100);
-}
-
-function lighten (color, amount) {
-    amount = (amount === 0) ? 0 : (amount || 10);
-    var hsl = tinycolor(color).toHsl();
-    hsl.l += amount / 100;
-    hsl.l = clamp01(hsl.l);
-    return tinycolor(hsl);
-}
-
-function brighten(color, amount) {
-    amount = (amount === 0) ? 0 : (amount || 10);
-    var rgb = tinycolor(color).toRgb();
-    rgb.r = mathMax(0, mathMin(255, rgb.r - mathRound(255 * - (amount / 100))));
-    rgb.g = mathMax(0, mathMin(255, rgb.g - mathRound(255 * - (amount / 100))));
-    rgb.b = mathMax(0, mathMin(255, rgb.b - mathRound(255 * - (amount / 100))));
-    return tinycolor(rgb);
-}
-
-function darken (color, amount) {
-    amount = (amount === 0) ? 0 : (amount || 10);
-    var hsl = tinycolor(color).toHsl();
-    hsl.l -= amount / 100;
-    hsl.l = clamp01(hsl.l);
-    return tinycolor(hsl);
-}
-
-// Spin takes a positive or negative amount within [-360, 360] indicating the change of hue.
-// Values outside of this range will be wrapped into this range.
-function spin(color, amount) {
-    var hsl = tinycolor(color).toHsl();
-    var hue = (hsl.h + amount) % 360;
-    hsl.h = hue < 0 ? 360 + hue : hue;
-    return tinycolor(hsl);
-}
-
-// Combination Functions
-// ---------------------
-// Thanks to jQuery xColor for some of the ideas behind these
-// <https://github.com/infusion/jQuery-xcolor/blob/master/jquery.xcolor.js>
-
-function complement(color) {
-    var hsl = tinycolor(color).toHsl();
-    hsl.h = (hsl.h + 180) % 360;
-    return tinycolor(hsl);
-}
-
-function triad(color) {
-    var hsl = tinycolor(color).toHsl();
-    var h = hsl.h;
-    return [
-        tinycolor(color),
-        tinycolor({ h: (h + 120) % 360, s: hsl.s, l: hsl.l }),
-        tinycolor({ h: (h + 240) % 360, s: hsl.s, l: hsl.l })
-    ];
-}
-
-function tetrad(color) {
-    var hsl = tinycolor(color).toHsl();
-    var h = hsl.h;
-    return [
-        tinycolor(color),
-        tinycolor({ h: (h + 90) % 360, s: hsl.s, l: hsl.l }),
-        tinycolor({ h: (h + 180) % 360, s: hsl.s, l: hsl.l }),
-        tinycolor({ h: (h + 270) % 360, s: hsl.s, l: hsl.l })
-    ];
-}
-
-function splitcomplement(color) {
-    var hsl = tinycolor(color).toHsl();
-    var h = hsl.h;
-    return [
-        tinycolor(color),
-        tinycolor({ h: (h + 72) % 360, s: hsl.s, l: hsl.l}),
-        tinycolor({ h: (h + 216) % 360, s: hsl.s, l: hsl.l})
-    ];
-}
-
-function analogous(color, results, slices) {
-    results = results || 6;
-    slices = slices || 30;
-
-    var hsl = tinycolor(color).toHsl();
-    var part = 360 / slices;
-    var ret = [tinycolor(color)];
-
-    for (hsl.h = ((hsl.h - (part * results >> 1)) + 720) % 360; --results; ) {
-        hsl.h = (hsl.h + part) % 360;
-        ret.push(tinycolor(hsl));
-    }
-    return ret;
-}
-
-function monochromatic(color, results) {
-    results = results || 6;
-    var hsv = tinycolor(color).toHsv();
-    var h = hsv.h, s = hsv.s, v = hsv.v;
-    var ret = [];
-    var modification = 1 / results;
-
-    while (results--) {
-        ret.push(tinycolor({ h: h, s: s, v: v}));
-        v = (v + modification) % 1;
-    }
-
-    return ret;
-}
-
-// Utility Functions
-// ---------------------
-
-tinycolor.mix = function(color1, color2, amount) {
-    amount = (amount === 0) ? 0 : (amount || 50);
-
-    var rgb1 = tinycolor(color1).toRgb();
-    var rgb2 = tinycolor(color2).toRgb();
-
-    var p = amount / 100;
-
-    var rgba = {
-        r: ((rgb2.r - rgb1.r) * p) + rgb1.r,
-        g: ((rgb2.g - rgb1.g) * p) + rgb1.g,
-        b: ((rgb2.b - rgb1.b) * p) + rgb1.b,
-        a: ((rgb2.a - rgb1.a) * p) + rgb1.a
-    };
-
-    return tinycolor(rgba);
-};
-
-
-// Readability Functions
-// ---------------------
-// <http://www.w3.org/TR/2008/REC-WCAG20-20081211/#contrast-ratiodef (WCAG Version 2)
-
-// `contrast`
-// Analyze the 2 colors and returns the color contrast defined by (WCAG Version 2)
-tinycolor.readability = function(color1, color2) {
-    var c1 = tinycolor(color1);
-    var c2 = tinycolor(color2);
-    return (Math.max(c1.getLuminance(),c2.getLuminance())+0.05) / (Math.min(c1.getLuminance(),c2.getLuminance())+0.05);
-};
-
-// `isReadable`
-// Ensure that foreground and background color combinations meet WCAG2 guidelines.
-// The third argument is an optional Object.
-//      the 'level' property states 'AA' or 'AAA' - if missing or invalid, it defaults to 'AA';
-//      the 'size' property states 'large' or 'small' - if missing or invalid, it defaults to 'small'.
-// If the entire object is absent, isReadable defaults to {level:"AA",size:"small"}.
-
-// *Example*
-//    tinycolor.isReadable("#000", "#111") => false
-//    tinycolor.isReadable("#000", "#111",{level:"AA",size:"large"}) => false
-tinycolor.isReadable = function(color1, color2, wcag2) {
-    var readability = tinycolor.readability(color1, color2);
-    var wcag2Parms, out;
-
-    out = false;
-
-    wcag2Parms = validateWCAG2Parms(wcag2);
-    switch (wcag2Parms.level + wcag2Parms.size) {
-        case "AAsmall":
-        case "AAAlarge":
-            out = readability >= 4.5;
-            break;
-        case "AAlarge":
-            out = readability >= 3;
-            break;
-        case "AAAsmall":
-            out = readability >= 7;
-            break;
-    }
-    return out;
-
-};
-
-// `mostReadable`
-// Given a base color and a list of possible foreground or background
-// colors for that base, returns the most readable color.
-// Optionally returns Black or White if the most readable color is unreadable.
-// *Example*
-//    tinycolor.mostReadable(tinycolor.mostReadable("#123", ["#124", "#125"],{includeFallbackColors:false}).toHexString(); // "#112255"
-//    tinycolor.mostReadable(tinycolor.mostReadable("#123", ["#124", "#125"],{includeFallbackColors:true}).toHexString();  // "#ffffff"
-//    tinycolor.mostReadable("#a8015a", ["#faf3f3"],{includeFallbackColors:true,level:"AAA",size:"large"}).toHexString(); // "#faf3f3"
-//    tinycolor.mostReadable("#a8015a", ["#faf3f3"],{includeFallbackColors:true,level:"AAA",size:"small"}).toHexString(); // "#ffffff"
-tinycolor.mostReadable = function(baseColor, colorList, args) {
-    var bestColor = null;
-    var bestScore = 0;
-    var readability;
-    var includeFallbackColors, level, size ;
-    args = args || {};
-    includeFallbackColors = args.includeFallbackColors ;
-    level = args.level;
-    size = args.size;
-
-    for (var i= 0; i < colorList.length ; i++) {
-        readability = tinycolor.readability(baseColor, colorList[i]);
-        if (readability > bestScore) {
-            bestScore = readability;
-            bestColor = tinycolor(colorList[i]);
-        }
-    }
-
-    if (tinycolor.isReadable(baseColor, bestColor, {"level":level,"size":size}) || !includeFallbackColors) {
-        return bestColor;
-    }
-    else {
-        args.includeFallbackColors=false;
-        return tinycolor.mostReadable(baseColor,["#fff", "#000"],args);
-    }
-};
-
-
-// Big List of Colors
-// ------------------
-// <http://www.w3.org/TR/css3-color/#svg-color>
-var names = tinycolor.names = {
-    aliceblue: "f0f8ff",
-    antiquewhite: "faebd7",
-    aqua: "0ff",
-    aquamarine: "7fffd4",
-    azure: "f0ffff",
-    beige: "f5f5dc",
-    bisque: "ffe4c4",
-    black: "000",
-    blanchedalmond: "ffebcd",
-    blue: "00f",
-    blueviolet: "8a2be2",
-    brown: "a52a2a",
-    burlywood: "deb887",
-    burntsienna: "ea7e5d",
-    cadetblue: "5f9ea0",
-    chartreuse: "7fff00",
-    chocolate: "d2691e",
-    coral: "ff7f50",
-    cornflowerblue: "6495ed",
-    cornsilk: "fff8dc",
-    crimson: "dc143c",
-    cyan: "0ff",
-    darkblue: "00008b",
-    darkcyan: "008b8b",
-    darkgoldenrod: "b8860b",
-    darkgray: "a9a9a9",
-    darkgreen: "006400",
-    darkgrey: "a9a9a9",
-    darkkhaki: "bdb76b",
-    darkmagenta: "8b008b",
-    darkolivegreen: "556b2f",
-    darkorange: "ff8c00",
-    darkorchid: "9932cc",
-    darkred: "8b0000",
-    darksalmon: "e9967a",
-    darkseagreen: "8fbc8f",
-    darkslateblue: "483d8b",
-    darkslategray: "2f4f4f",
-    darkslategrey: "2f4f4f",
-    darkturquoise: "00ced1",
-    darkviolet: "9400d3",
-    deeppink: "ff1493",
-    deepskyblue: "00bfff",
-    dimgray: "696969",
-    dimgrey: "696969",
-    dodgerblue: "1e90ff",
-    firebrick: "b22222",
-    floralwhite: "fffaf0",
-    forestgreen: "228b22",
-    fuchsia: "f0f",
-    gainsboro: "dcdcdc",
-    ghostwhite: "f8f8ff",
-    gold: "ffd700",
-    goldenrod: "daa520",
-    gray: "808080",
-    green: "008000",
-    greenyellow: "adff2f",
-    grey: "808080",
-    honeydew: "f0fff0",
-    hotpink: "ff69b4",
-    indianred: "cd5c5c",
-    indigo: "4b0082",
-    ivory: "fffff0",
-    khaki: "f0e68c",
-    lavender: "e6e6fa",
-    lavenderblush: "fff0f5",
-    lawngreen: "7cfc00",
-    lemonchiffon: "fffacd",
-    lightblue: "add8e6",
-    lightcoral: "f08080",
-    lightcyan: "e0ffff",
-    lightgoldenrodyellow: "fafad2",
-    lightgray: "d3d3d3",
-    lightgreen: "90ee90",
-    lightgrey: "d3d3d3",
-    lightpink: "ffb6c1",
-    lightsalmon: "ffa07a",
-    lightseagreen: "20b2aa",
-    lightskyblue: "87cefa",
-    lightslategray: "789",
-    lightslategrey: "789",
-    lightsteelblue: "b0c4de",
-    lightyellow: "ffffe0",
-    lime: "0f0",
-    limegreen: "32cd32",
-    linen: "faf0e6",
-    magenta: "f0f",
-    maroon: "800000",
-    mediumaquamarine: "66cdaa",
-    mediumblue: "0000cd",
-    mediumorchid: "ba55d3",
-    mediumpurple: "9370db",
-    mediumseagreen: "3cb371",
-    mediumslateblue: "7b68ee",
-    mediumspringgreen: "00fa9a",
-    mediumturquoise: "48d1cc",
-    mediumvioletred: "c71585",
-    midnightblue: "191970",
-    mintcream: "f5fffa",
-    mistyrose: "ffe4e1",
-    moccasin: "ffe4b5",
-    navajowhite: "ffdead",
-    navy: "000080",
-    oldlace: "fdf5e6",
-    olive: "808000",
-    olivedrab: "6b8e23",
-    orange: "ffa500",
-    orangered: "ff4500",
-    orchid: "da70d6",
-    palegoldenrod: "eee8aa",
-    palegreen: "98fb98",
-    paleturquoise: "afeeee",
-    palevioletred: "db7093",
-    papayawhip: "ffefd5",
-    peachpuff: "ffdab9",
-    peru: "cd853f",
-    pink: "ffc0cb",
-    plum: "dda0dd",
-    powderblue: "b0e0e6",
-    purple: "800080",
-    rebeccapurple: "663399",
-    red: "f00",
-    rosybrown: "bc8f8f",
-    royalblue: "4169e1",
-    saddlebrown: "8b4513",
-    salmon: "fa8072",
-    sandybrown: "f4a460",
-    seagreen: "2e8b57",
-    seashell: "fff5ee",
-    sienna: "a0522d",
-    silver: "c0c0c0",
-    skyblue: "87ceeb",
-    slateblue: "6a5acd",
-    slategray: "708090",
-    slategrey: "708090",
-    snow: "fffafa",
-    springgreen: "00ff7f",
-    steelblue: "4682b4",
-    tan: "d2b48c",
-    teal: "008080",
-    thistle: "d8bfd8",
-    tomato: "ff6347",
-    turquoise: "40e0d0",
-    violet: "ee82ee",
-    wheat: "f5deb3",
-    white: "fff",
-    whitesmoke: "f5f5f5",
-    yellow: "ff0",
-    yellowgreen: "9acd32"
-};
-
-// Make it easy to access colors via `hexNames[hex]`
-var hexNames = tinycolor.hexNames = flip(names);
-
-
-// Utilities
-// ---------
-
-// `{ 'name1': 'val1' }` becomes `{ 'val1': 'name1' }`
-function flip(o) {
-    var flipped = { };
-    for (var i in o) {
-        if (o.hasOwnProperty(i)) {
-            flipped[o[i]] = i;
-        }
-    }
-    return flipped;
-}
-
-// Return a valid alpha value [0,1] with all invalid values being set to 1
-function boundAlpha(a) {
-    a = parseFloat(a);
-
-    if (isNaN(a) || a < 0 || a > 1) {
-        a = 1;
-    }
-
-    return a;
-}
-
-// Take input from [0, n] and return it as [0, 1]
-function bound01(n, max) {
-    if (isOnePointZero(n)) { n = "100%"; }
-
-    var processPercent = isPercentage(n);
-    n = mathMin(max, mathMax(0, parseFloat(n)));
-
-    // Automatically convert percentage into number
-    if (processPercent) {
-        n = parseInt(n * max, 10) / 100;
-    }
-
-    // Handle floating point rounding errors
-    if ((Math.abs(n - max) < 0.000001)) {
-        return 1;
-    }
-
-    // Convert into [0, 1] range if it isn't already
-    return (n % max) / parseFloat(max);
-}
-
-// Force a number between 0 and 1
-function clamp01(val) {
-    return mathMin(1, mathMax(0, val));
-}
-
-// Parse a base-16 hex value into a base-10 integer
-function parseIntFromHex(val) {
-    return parseInt(val, 16);
-}
-
-// Need to handle 1.0 as 100%, since once it is a number, there is no difference between it and 1
-// <http://stackoverflow.com/questions/7422072/javascript-how-to-detect-number-as-a-decimal-including-1-0>
-function isOnePointZero(n) {
-    return typeof n == "string" && n.indexOf('.') != -1 && parseFloat(n) === 1;
-}
-
-// Check to see if string passed in is a percentage
-function isPercentage(n) {
-    return typeof n === "string" && n.indexOf('%') != -1;
-}
-
-// Force a hex value to have 2 characters
-function pad2(c) {
-    return c.length == 1 ? '0' + c : '' + c;
-}
-
-// Replace a decimal with it's percentage value
-function convertToPercentage(n) {
-    if (n <= 1) {
-        n = (n * 100) + "%";
-    }
-
-    return n;
-}
-
-// Converts a decimal to a hex value
-function convertDecimalToHex(d) {
-    return Math.round(parseFloat(d) * 255).toString(16);
-}
-// Converts a hex value to a decimal
-function convertHexToDecimal(h) {
-    return (parseIntFromHex(h) / 255);
-}
-
-var matchers = (function() {
-
-    // <http://www.w3.org/TR/css3-values/#integers>
-    var CSS_INTEGER = "[-\\+]?\\d+%?";
-
-    // <http://www.w3.org/TR/css3-values/#number-value>
-    var CSS_NUMBER = "[-\\+]?\\d*\\.\\d+%?";
-
-    // Allow positive/negative integer/number.  Don't capture the either/or, just the entire outcome.
-    var CSS_UNIT = "(?:" + CSS_NUMBER + ")|(?:" + CSS_INTEGER + ")";
-
-    // Actual matching.
-    // Parentheses and commas are optional, but not required.
-    // Whitespace can take the place of commas or opening paren
-    var PERMISSIVE_MATCH3 = "[\\s|\\(]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")\\s*\\)?";
-    var PERMISSIVE_MATCH4 = "[\\s|\\(]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")[,|\\s]+(" + CSS_UNIT + ")\\s*\\)?";
-
-    return {
-        CSS_UNIT: new RegExp(CSS_UNIT),
-        rgb: new RegExp("rgb" + PERMISSIVE_MATCH3),
-        rgba: new RegExp("rgba" + PERMISSIVE_MATCH4),
-        hsl: new RegExp("hsl" + PERMISSIVE_MATCH3),
-        hsla: new RegExp("hsla" + PERMISSIVE_MATCH4),
-        hsv: new RegExp("hsv" + PERMISSIVE_MATCH3),
-        hsva: new RegExp("hsva" + PERMISSIVE_MATCH4),
-        hex3: /^#?([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})$/,
-        hex6: /^#?([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/,
-        hex4: /^#?([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})([0-9a-fA-F]{1})$/,
-        hex8: /^#?([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/
-    };
-})();
-
-// `isValidCSSUnit`
-// Take in a single string / number and check to see if it looks like a CSS unit
-// (see `matchers` above for definition).
-function isValidCSSUnit(color) {
-    return !!matchers.CSS_UNIT.exec(color);
-}
-
-// `stringInputToObject`
-// Permissive string parsing.  Take in a number of formats, and output an object
-// based on detected format.  Returns `{ r, g, b }` or `{ h, s, l }` or `{ h, s, v}`
+/**
+ * Permissive string parsing.  Take in a number of formats, and output an object
+ * based on detected format.  Returns `{ r, g, b }` or `{ h, s, l }` or `{ h, s, v}`
+ */
 function stringInputToObject(color) {
-
-    color = color.replace(trimLeft,'').replace(trimRight, '').toLowerCase();
+    color = color.trim().toLowerCase();
+    if (color.length === 0) {
+        return false;
+    }
     var named = false;
     if (names[color]) {
         color = names[color];
         named = true;
     }
-    else if (color == 'transparent') {
-        return { r: 0, g: 0, b: 0, a: 0, format: "name" };
+    else if (color === 'transparent') {
+        return { r: 0, g: 0, b: 0, a: 0, format: 'name' };
     }
-
     // Try to match string input using regular expressions.
     // Keep most of the number bounding out of this function - don't worry about [0,1] or [0,100] or [0,360]
     // Just return an object and let the conversion functions handle that.
     // This way the result will be the same whether the tinycolor is initialized with string or object.
-    var match;
-    if ((match = matchers.rgb.exec(color))) {
+    var match = matchers.rgb.exec(color);
+    if (match) {
         return { r: match[1], g: match[2], b: match[3] };
     }
-    if ((match = matchers.rgba.exec(color))) {
+    match = matchers.rgba.exec(color);
+    if (match) {
         return { r: match[1], g: match[2], b: match[3], a: match[4] };
     }
-    if ((match = matchers.hsl.exec(color))) {
+    match = matchers.hsl.exec(color);
+    if (match) {
         return { h: match[1], s: match[2], l: match[3] };
     }
-    if ((match = matchers.hsla.exec(color))) {
+    match = matchers.hsla.exec(color);
+    if (match) {
         return { h: match[1], s: match[2], l: match[3], a: match[4] };
     }
-    if ((match = matchers.hsv.exec(color))) {
+    match = matchers.hsv.exec(color);
+    if (match) {
         return { h: match[1], s: match[2], v: match[3] };
     }
-    if ((match = matchers.hsva.exec(color))) {
+    match = matchers.hsva.exec(color);
+    if (match) {
         return { h: match[1], s: match[2], v: match[3], a: match[4] };
     }
-    if ((match = matchers.hex8.exec(color))) {
+    match = matchers.hex8.exec(color);
+    if (match) {
         return {
             r: parseIntFromHex(match[1]),
             g: parseIntFromHex(match[2]),
             b: parseIntFromHex(match[3]),
             a: convertHexToDecimal(match[4]),
-            format: named ? "name" : "hex8"
+            format: named ? 'name' : 'hex8',
         };
     }
-    if ((match = matchers.hex6.exec(color))) {
+    match = matchers.hex6.exec(color);
+    if (match) {
         return {
             r: parseIntFromHex(match[1]),
             g: parseIntFromHex(match[2]),
             b: parseIntFromHex(match[3]),
-            format: named ? "name" : "hex"
+            format: named ? 'name' : 'hex',
         };
     }
-    if ((match = matchers.hex4.exec(color))) {
+    match = matchers.hex4.exec(color);
+    if (match) {
         return {
-            r: parseIntFromHex(match[1] + '' + match[1]),
-            g: parseIntFromHex(match[2] + '' + match[2]),
-            b: parseIntFromHex(match[3] + '' + match[3]),
-            a: convertHexToDecimal(match[4] + '' + match[4]),
-            format: named ? "name" : "hex8"
+            r: parseIntFromHex(match[1] + match[1]),
+            g: parseIntFromHex(match[2] + match[2]),
+            b: parseIntFromHex(match[3] + match[3]),
+            a: convertHexToDecimal(match[4] + match[4]),
+            format: named ? 'name' : 'hex8',
         };
     }
-    if ((match = matchers.hex3.exec(color))) {
+    match = matchers.hex3.exec(color);
+    if (match) {
         return {
-            r: parseIntFromHex(match[1] + '' + match[1]),
-            g: parseIntFromHex(match[2] + '' + match[2]),
-            b: parseIntFromHex(match[3] + '' + match[3]),
-            format: named ? "name" : "hex"
+            r: parseIntFromHex(match[1] + match[1]),
+            g: parseIntFromHex(match[2] + match[2]),
+            b: parseIntFromHex(match[3] + match[3]),
+            format: named ? 'name' : 'hex',
         };
     }
-
     return false;
 }
-
-function validateWCAG2Parms(parms) {
-    // return valid WCAG2 parms for isReadable.
-    // If input parms are invalid, return {"level":"AA", "size":"small"}
-    var level, size;
-    parms = parms || {"level":"AA", "size":"small"};
-    level = (parms.level || "AA").toUpperCase();
-    size = (parms.size || "small").toLowerCase();
-    if (level !== "AA" && level !== "AAA") {
-        level = "AA";
-    }
-    if (size !== "small" && size !== "large") {
-        size = "small";
-    }
-    return {"level":level, "size":size};
+/**
+ * Check to see if it looks like a CSS unit
+ * (see `matchers` above for definition).
+ */
+function isValidCSSUnit(color) {
+    return Boolean(matchers.CSS_UNIT.exec(String(color)));
 }
 
-// Node: Export function
-if ( module.exports) {
-    module.exports = tinycolor;
-}
-// AMD/requirejs: Define the module
-else {
-    window.tinycolor = tinycolor;
-}
-
-})(Math);
-});
-
-var generate_1 = createCommonjsModule(function (module, exports) {
-var __importDefault = (commonjsGlobal && commonjsGlobal.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-var tinycolor2_1 = __importDefault(tinycolor);
 var hueStep = 2; // 色相阶梯
-var saturationStep = 16; // 饱和度阶梯，浅色部分
-var saturationStep2 = 5; // 饱和度阶梯，深色部分
-var brightnessStep1 = 5; // 亮度阶梯，浅色部分
-var brightnessStep2 = 15; // 亮度阶梯，深色部分
-var lightColorCount = 5; // 浅色数量，主色上
-var darkColorCount = 4; // 深色数量，主色下
-function getHue(hsv, i, light) {
-    var hue;
-    // 根据色相不同，色相转向不同
-    if (Math.round(hsv.h) >= 60 && Math.round(hsv.h) <= 240) {
-        hue = light ? Math.round(hsv.h) - hueStep * i : Math.round(hsv.h) + hueStep * i;
-    }
-    else {
-        hue = light ? Math.round(hsv.h) + hueStep * i : Math.round(hsv.h) - hueStep * i;
-    }
-    if (hue < 0) {
-        hue += 360;
-    }
-    else if (hue >= 360) {
-        hue -= 360;
-    }
-    return hue;
-}
-function getSaturation(hsv, i, light) {
-    // grey color don't change saturation
-    if (hsv.h === 0 && hsv.s === 0) {
-        return hsv.s;
-    }
-    var saturation;
-    if (light) {
-        saturation = Math.round(hsv.s * 100) - saturationStep * i;
-    }
-    else if (i === darkColorCount) {
-        saturation = Math.round(hsv.s * 100) + saturationStep;
-    }
-    else {
-        saturation = Math.round(hsv.s * 100) + saturationStep2 * i;
-    }
-    // 边界值修正
-    if (saturation > 100) {
-        saturation = 100;
-    }
-    // 第一格的 s 限制在 6-10 之间
-    if (light && i === lightColorCount && saturation > 10) {
-        saturation = 10;
-    }
-    if (saturation < 6) {
-        saturation = 6;
-    }
-    return saturation;
-}
-function getValue(hsv, i, light) {
-    if (light) {
-        return Math.round(hsv.v * 100) + brightnessStep1 * i;
-    }
-    return Math.round(hsv.v * 100) - brightnessStep2 * i;
-}
-function generate(color) {
-    var patterns = [];
-    var pColor = tinycolor2_1.default(color);
-    for (var i = lightColorCount; i > 0; i -= 1) {
-        var hsv = pColor.toHsv();
-        var colorString = tinycolor2_1.default({
-            h: getHue(hsv, i, true),
-            s: getSaturation(hsv, i, true),
-            v: getValue(hsv, i, true),
-        }).toHexString();
-        patterns.push(colorString);
-    }
-    patterns.push(pColor.toHexString());
-    for (var i = 1; i <= darkColorCount; i += 1) {
-        var hsv = pColor.toHsv();
-        var colorString = tinycolor2_1.default({
-            h: getHue(hsv, i),
-            s: getSaturation(hsv, i),
-            v: getValue(hsv, i),
-        }).toHexString();
-        patterns.push(colorString);
-    }
-    return patterns;
-}
-exports.default = generate;
-});
 
-var lib = createCommonjsModule(function (module, exports) {
-var __importDefault = (commonjsGlobal && commonjsGlobal.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-var generate_1$1 = __importDefault(generate_1);
-exports.generate = generate_1$1.default;
+var saturationStep = 0.16; // 饱和度阶梯，浅色部分
+
+var saturationStep2 = 0.05; // 饱和度阶梯，深色部分
+
+var brightnessStep1 = 0.05; // 亮度阶梯，浅色部分
+
+var brightnessStep2 = 0.15; // 亮度阶梯，深色部分
+
+var lightColorCount = 5; // 浅色数量，主色上
+
+var darkColorCount = 4; // 深色数量，主色下
+// 暗色主题颜色映射关系表
+
+var darkColorMap = [{
+  index: 7,
+  opacity: 0.15
+}, {
+  index: 6,
+  opacity: 0.25
+}, {
+  index: 5,
+  opacity: 0.3
+}, {
+  index: 5,
+  opacity: 0.45
+}, {
+  index: 5,
+  opacity: 0.65
+}, {
+  index: 5,
+  opacity: 0.85
+}, {
+  index: 4,
+  opacity: 0.9
+}, {
+  index: 3,
+  opacity: 0.95
+}, {
+  index: 2,
+  opacity: 0.97
+}, {
+  index: 1,
+  opacity: 0.98
+}]; // Wrapper function ported from TinyColor.prototype.toHsv
+// Keep it here because of `hsv.h * 360`
+
+function toHsv(_ref) {
+  var r = _ref.r,
+      g = _ref.g,
+      b = _ref.b;
+  var hsv = rgbToHsv(r, g, b);
+  return {
+    h: hsv.h * 360,
+    s: hsv.s,
+    v: hsv.v
+  };
+} // Wrapper function ported from TinyColor.prototype.toHexString
+// Keep it here because of the prefix `#`
+
+
+function toHex(_ref2) {
+  var r = _ref2.r,
+      g = _ref2.g,
+      b = _ref2.b;
+  return "#".concat(rgbToHex(r, g, b, false));
+} // Wrapper function ported from TinyColor.prototype.mix, not treeshakable.
+// Amount in range [0, 1]
+// Assume color1 & color2 has no alpha, since the following src code did so.
+
+
+function mix(rgb1, rgb2, amount) {
+  var p = amount / 100;
+  var rgb = {
+    r: (rgb2.r - rgb1.r) * p + rgb1.r,
+    g: (rgb2.g - rgb1.g) * p + rgb1.g,
+    b: (rgb2.b - rgb1.b) * p + rgb1.b
+  };
+  return rgb;
+}
+
+function getHue(hsv, i, light) {
+  var hue; // 根据色相不同，色相转向不同
+
+  if (Math.round(hsv.h) >= 60 && Math.round(hsv.h) <= 240) {
+    hue = light ? Math.round(hsv.h) - hueStep * i : Math.round(hsv.h) + hueStep * i;
+  } else {
+    hue = light ? Math.round(hsv.h) + hueStep * i : Math.round(hsv.h) - hueStep * i;
+  }
+
+  if (hue < 0) {
+    hue += 360;
+  } else if (hue >= 360) {
+    hue -= 360;
+  }
+
+  return hue;
+}
+
+function getSaturation(hsv, i, light) {
+  // grey color don't change saturation
+  if (hsv.h === 0 && hsv.s === 0) {
+    return hsv.s;
+  }
+
+  var saturation;
+
+  if (light) {
+    saturation = hsv.s - saturationStep * i;
+  } else if (i === darkColorCount) {
+    saturation = hsv.s + saturationStep;
+  } else {
+    saturation = hsv.s + saturationStep2 * i;
+  } // 边界值修正
+
+
+  if (saturation > 1) {
+    saturation = 1;
+  } // 第一格的 s 限制在 0.06-0.1 之间
+
+
+  if (light && i === lightColorCount && saturation > 0.1) {
+    saturation = 0.1;
+  }
+
+  if (saturation < 0.06) {
+    saturation = 0.06;
+  }
+
+  return Number(saturation.toFixed(2));
+}
+
+function getValue(hsv, i, light) {
+  var value;
+
+  if (light) {
+    value = hsv.v + brightnessStep1 * i;
+  } else {
+    value = hsv.v - brightnessStep2 * i;
+  }
+
+  if (value > 1) {
+    value = 1;
+  }
+
+  return Number(value.toFixed(2));
+}
+
+function generate(color) {
+  var opts = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  var patterns = [];
+  var pColor = inputToRGB(color);
+
+  for (var i = lightColorCount; i > 0; i -= 1) {
+    var hsv = toHsv(pColor);
+    var colorString = toHex(inputToRGB({
+      h: getHue(hsv, i, true),
+      s: getSaturation(hsv, i, true),
+      v: getValue(hsv, i, true)
+    }));
+    patterns.push(colorString);
+  }
+
+  patterns.push(toHex(pColor));
+
+  for (var _i = 1; _i <= darkColorCount; _i += 1) {
+    var _hsv = toHsv(pColor);
+
+    var _colorString = toHex(inputToRGB({
+      h: getHue(_hsv, _i),
+      s: getSaturation(_hsv, _i),
+      v: getValue(_hsv, _i)
+    }));
+
+    patterns.push(_colorString);
+  } // dark theme patterns
+
+
+  if (opts.theme === 'dark') {
+    return darkColorMap.map(function (_ref3) {
+      var index = _ref3.index,
+          opacity = _ref3.opacity;
+      var darkColorString = toHex(mix(inputToRGB(opts.backgroundColor || '#141414'), inputToRGB(patterns[index]), opacity * 100));
+      return darkColorString;
+    });
+  }
+
+  return patterns;
+}
+
 var presetPrimaryColors = {
-    red: '#F5222D',
-    volcano: '#FA541C',
-    orange: '#FA8C16',
-    gold: '#FAAD14',
-    yellow: '#FADB14',
-    lime: '#A0D911',
-    green: '#52C41A',
-    cyan: '#13C2C2',
-    blue: '#1890FF',
-    geekblue: '#2F54EB',
-    purple: '#722ED1',
-    magenta: '#EB2F96',
-    grey: '#666666',
+  red: '#F5222D',
+  volcano: '#FA541C',
+  orange: '#FA8C16',
+  gold: '#FAAD14',
+  yellow: '#FADB14',
+  lime: '#A0D911',
+  green: '#52C41A',
+  cyan: '#13C2C2',
+  blue: '#1890FF',
+  geekblue: '#2F54EB',
+  purple: '#722ED1',
+  magenta: '#EB2F96',
+  grey: '#666666'
 };
-exports.presetPrimaryColors = presetPrimaryColors;
 var presetPalettes = {};
-exports.presetPalettes = presetPalettes;
+var presetDarkPalettes = {};
 Object.keys(presetPrimaryColors).forEach(function (key) {
-    presetPalettes[key] = generate_1$1.default(presetPrimaryColors[key]);
-    presetPalettes[key].primary = presetPalettes[key][5];
+  presetPalettes[key] = generate(presetPrimaryColors[key]);
+  presetPalettes[key].primary = presetPalettes[key][5]; // dark presetPalettes
+
+  presetDarkPalettes[key] = generate(presetPrimaryColors[key], {
+    theme: 'dark',
+    backgroundColor: '#141414'
+  });
+  presetDarkPalettes[key].primary = presetDarkPalettes[key][5];
 });
 var red = presetPalettes.red;
-exports.red = red;
 var volcano = presetPalettes.volcano;
-exports.volcano = volcano;
 var gold = presetPalettes.gold;
-exports.gold = gold;
 var orange = presetPalettes.orange;
-exports.orange = orange;
 var yellow = presetPalettes.yellow;
-exports.yellow = yellow;
 var lime = presetPalettes.lime;
-exports.lime = lime;
 var green = presetPalettes.green;
-exports.green = green;
 var cyan = presetPalettes.cyan;
-exports.cyan = cyan;
 var blue = presetPalettes.blue;
-exports.blue = blue;
 var geekblue = presetPalettes.geekblue;
-exports.geekblue = geekblue;
 var purple = presetPalettes.purple;
-exports.purple = purple;
 var magenta = presetPalettes.magenta;
-exports.magenta = magenta;
 var grey = presetPalettes.grey;
-exports.grey = grey;
+
+var index_esm = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    blue: blue,
+    cyan: cyan,
+    geekblue: geekblue,
+    generate: generate,
+    gold: gold,
+    green: green,
+    grey: grey,
+    lime: lime,
+    magenta: magenta,
+    orange: orange,
+    presetDarkPalettes: presetDarkPalettes,
+    presetPalettes: presetPalettes,
+    presetPrimaryColors: presetPrimaryColors,
+    purple: purple,
+    red: red,
+    volcano: volcano,
+    yellow: yellow
 });
 
 /* eslint-disable no-console */
@@ -1631,64 +1123,121 @@ function warningOnce(valid, message) {
 }
 /* eslint-enable */
 
-var containers = []; // will store container HTMLElement references
-var styleElements = []; // will store {prepend: HTMLElement, append: HTMLElement}
+function _arrayLikeToArray$1(arr, len) {
+  if (len == null || len > arr.length) len = arr.length;
 
-var usage = 'insert-css: You need to provide a CSS string. Usage: insertCss(cssString[, options]).';
+  for (var i = 0, arr2 = new Array(len); i < len; i++) {
+    arr2[i] = arr[i];
+  }
 
-function insertCss(css, options) {
-    options = options || {};
-
-    if (css === undefined) {
-        throw new Error(usage);
-    }
-
-    var position = options.prepend === true ? 'prepend' : 'append';
-    var container = options.container !== undefined ? options.container : document.querySelector('head');
-    var containerId = containers.indexOf(container);
-
-    // first time we see this container, create the necessary entries
-    if (containerId === -1) {
-        containerId = containers.push(container) - 1;
-        styleElements[containerId] = {};
-    }
-
-    // try to get the correponding container + position styleElement, create it otherwise
-    var styleElement;
-
-    if (styleElements[containerId] !== undefined && styleElements[containerId][position] !== undefined) {
-        styleElement = styleElements[containerId][position];
-    } else {
-        styleElement = styleElements[containerId][position] = createStyleElement();
-
-        if (position === 'prepend') {
-            container.insertBefore(styleElement, container.childNodes[0]);
-        } else {
-            container.appendChild(styleElement);
-        }
-    }
-
-    // strip potential UTF-8 BOM if css was read from a file
-    if (css.charCodeAt(0) === 0xFEFF) { css = css.substr(1, css.length); }
-
-    // actually add the stylesheet
-    if (styleElement.styleSheet) {
-        styleElement.styleSheet.cssText += css;
-    } else {
-        styleElement.textContent += css;
-    }
-
-    return styleElement;
-}
-function createStyleElement() {
-    var styleElement = document.createElement('style');
-    styleElement.setAttribute('type', 'text/css');
-    return styleElement;
+  return arr2;
 }
 
-var insertCss_1 = insertCss;
-var insertCss_2 = insertCss;
-insertCss_1.insertCss = insertCss_2;
+function _arrayWithoutHoles(arr) {
+  if (Array.isArray(arr)) return _arrayLikeToArray$1(arr);
+}
+
+function _iterableToArray(iter) {
+  if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter);
+}
+
+function _unsupportedIterableToArray$1(o, minLen) {
+  if (!o) return;
+  if (typeof o === "string") return _arrayLikeToArray$1(o, minLen);
+  var n = Object.prototype.toString.call(o).slice(8, -1);
+  if (n === "Object" && o.constructor) n = o.constructor.name;
+  if (n === "Map" || n === "Set") return Array.from(o);
+  if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray$1(o, minLen);
+}
+
+function _nonIterableSpread() {
+  throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+
+function _toConsumableArray(arr) {
+  return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray$1(arr) || _nonIterableSpread();
+}
+
+function canUseDom() {
+  return !!(typeof window !== 'undefined' && window.document && window.document.createElement);
+}
+
+var MARK_KEY = "rc-util-key";
+
+function getContainer(option) {
+  if (option.attachTo) {
+    return option.attachTo;
+  }
+
+  var head = document.querySelector('head');
+  return head || document.body;
+}
+
+function injectCSS(css) {
+  var _option$csp;
+
+  var option = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  if (!canUseDom()) {
+    return null;
+  }
+
+  var styleNode = document.createElement('style');
+
+  if ((_option$csp = option.csp) === null || _option$csp === void 0 ? void 0 : _option$csp.nonce) {
+    var _option$csp2;
+
+    styleNode.nonce = (_option$csp2 = option.csp) === null || _option$csp2 === void 0 ? void 0 : _option$csp2.nonce;
+  }
+
+  styleNode.innerHTML = css;
+  var container = getContainer(option);
+  var firstChild = container.firstChild;
+
+  if (option.prepend && firstChild) {
+    container.insertBefore(styleNode, firstChild);
+  } else {
+    container.appendChild(styleNode);
+  }
+
+  return styleNode;
+}
+var containerCache = new Map();
+function updateCSS(css, key) {
+  var option = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var container = getContainer(option); // Get real parent
+
+  if (!containerCache.has(container)) {
+    var placeholderStyle = injectCSS('', option);
+    var parentElement = placeholderStyle.parentElement;
+    containerCache.set(container, parentElement);
+    parentElement.removeChild(placeholderStyle);
+  }
+
+  var existNode = _toConsumableArray(containerCache.get(container).children).find(function (node) {
+    return node.tagName === 'STYLE' && node[MARK_KEY] === key;
+  });
+
+  if (existNode) {
+    var _option$csp3, _option$csp4;
+
+    if (((_option$csp3 = option.csp) === null || _option$csp3 === void 0 ? void 0 : _option$csp3.nonce) && existNode.nonce !== ((_option$csp4 = option.csp) === null || _option$csp4 === void 0 ? void 0 : _option$csp4.nonce)) {
+      var _option$csp5;
+
+      existNode.nonce = (_option$csp5 = option.csp) === null || _option$csp5 === void 0 ? void 0 : _option$csp5.nonce;
+    }
+
+    if (existNode.innerHTML !== css) {
+      existNode.innerHTML = css;
+    }
+
+    return existNode;
+  }
+
+  var newNode = injectCSS(css, option);
+  newNode[MARK_KEY] = key;
+  return newNode;
+}
 
 function warning$1(valid, message) {
   warningOnce(valid, "[@ant-design/icons] ".concat(message));
@@ -1714,24 +1263,24 @@ function normalizeAttrs() {
     return acc;
   }, {});
 }
-function generate(node, key, rootProps) {
+function generate$1(node, key, rootProps) {
   if (!rootProps) {
-    return React__default['default'].createElement(node.tag, _objectSpread2({
+    return /*#__PURE__*/React__default['default'].createElement(node.tag, _objectSpread2({
       key: key
     }, normalizeAttrs(node.attrs)), (node.children || []).map(function (child, index) {
-      return generate(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
+      return generate$1(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
     }));
   }
 
-  return React__default['default'].createElement(node.tag, _objectSpread2(_objectSpread2({
+  return /*#__PURE__*/React__default['default'].createElement(node.tag, _objectSpread2(_objectSpread2({
     key: key
   }, normalizeAttrs(node.attrs)), rootProps), (node.children || []).map(function (child, index) {
-    return generate(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
+    return generate$1(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
   }));
 }
 function getSecondaryColor(primaryColor) {
   // choose the second color
-  return lib.generate(primaryColor)[0];
+  return generate(primaryColor)[0];
 }
 function normalizeTwoToneColors(twoToneColor) {
   if (!twoToneColor) {
@@ -1741,16 +1290,17 @@ function normalizeTwoToneColors(twoToneColor) {
   return Array.isArray(twoToneColor) ? twoToneColor : [twoToneColor];
 } // These props make sure that the SVG behaviours like general text.
 var iconStyles = "\n.anticon {\n  display: inline-block;\n  color: inherit;\n  font-style: normal;\n  line-height: 0;\n  text-align: center;\n  text-transform: none;\n  vertical-align: -0.125em;\n  text-rendering: optimizeLegibility;\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n}\n\n.anticon > * {\n  line-height: 1;\n}\n\n.anticon svg {\n  display: inline-block;\n}\n\n.anticon::before {\n  display: none;\n}\n\n.anticon .anticon-icon {\n  display: block;\n}\n\n.anticon[tabindex] {\n  cursor: pointer;\n}\n\n.anticon-spin::before,\n.anticon-spin {\n  display: inline-block;\n  -webkit-animation: loadingCircle 1s infinite linear;\n  animation: loadingCircle 1s infinite linear;\n}\n\n@-webkit-keyframes loadingCircle {\n  100% {\n    -webkit-transform: rotate(360deg);\n    transform: rotate(360deg);\n  }\n}\n\n@keyframes loadingCircle {\n  100% {\n    -webkit-transform: rotate(360deg);\n    transform: rotate(360deg);\n  }\n}\n";
-var cssInjectedFlag = false;
 var useInsertStyles = function useInsertStyles() {
   var styleStr = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : iconStyles;
+
+  var _useContext = React.useContext(IconContext),
+      csp = _useContext.csp;
+
   React.useEffect(function () {
-    if (!cssInjectedFlag) {
-      insertCss_2(styleStr, {
-        prepend: true
-      });
-      cssInjectedFlag = true;
-    }
+    updateCSS(styleStr, '@ant-design-icons', {
+      prepend: true,
+      csp: csp
+    });
   }, []);
 };
 
@@ -1805,7 +1355,7 @@ var IconBase = function IconBase(props) {
     });
   }
 
-  return generate(target.icon, "svg-".concat(target.name), _objectSpread2({
+  return generate$1(target.icon, "svg-".concat(target.name), _objectSpread2({
     className: className,
     onClick: onClick,
     style: style,
@@ -1845,7 +1395,9 @@ function getTwoToneColor() {
 // should move it to antd main repo?
 
 setTwoToneColor('#1890ff');
-var Icon = React.forwardRef(function (props, ref) {
+var Icon = /*#__PURE__*/React.forwardRef(function (props, ref) {
+  var _classNames;
+
   var className = props.className,
       icon = props.icon,
       spin = props.spin,
@@ -1855,10 +1407,11 @@ var Icon = React.forwardRef(function (props, ref) {
       twoToneColor = props.twoToneColor,
       restProps = _objectWithoutProperties(props, ["className", "icon", "spin", "rotate", "tabIndex", "onClick", "twoToneColor"]);
 
-  var classString = classnames('anticon', _defineProperty({}, "anticon-".concat(icon.name), Boolean(icon.name)), className);
-  var svgClassString = classnames({
-    'anticon-spin': !!spin || icon.name === 'loading'
-  });
+  var _React$useContext = React.useContext(IconContext),
+      _React$useContext$pre = _React$useContext.prefixCls,
+      prefixCls = _React$useContext$pre === void 0 ? 'anticon' : _React$useContext$pre;
+
+  var classString = classnames(prefixCls, (_classNames = {}, _defineProperty(_classNames, "".concat(prefixCls, "-").concat(icon.name), !!icon.name), _defineProperty(_classNames, "".concat(prefixCls, "-spin"), !!spin || icon.name === 'loading'), _classNames), className);
   var iconTabIndex = tabIndex;
 
   if (iconTabIndex === undefined && onClick) {
@@ -1875,7 +1428,7 @@ var Icon = React.forwardRef(function (props, ref) {
       primaryColor = _normalizeTwoToneColo2[0],
       secondaryColor = _normalizeTwoToneColo2[1];
 
-  return React.createElement("span", Object.assign({
+  return /*#__PURE__*/React.createElement("span", Object.assign({
     role: "img",
     "aria-label": icon.name
   }, restProps, {
@@ -1883,8 +1436,7 @@ var Icon = React.forwardRef(function (props, ref) {
     tabIndex: iconTabIndex,
     onClick: onClick,
     className: classString
-  }), React.createElement(IconBase, {
-    className: svgClassString,
+  }), /*#__PURE__*/React.createElement(IconBase, {
     icon: icon,
     primaryColor: primaryColor,
     secondaryColor: secondaryColor,
@@ -1901,14 +1453,14 @@ var CloseOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "64 64 896 8
 // GENERATE BY ./scripts/generate.ts
 
 var CloseOutlined$1 = function CloseOutlined$1(props, ref) {
-  return React.createElement(Icon, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(Icon, Object.assign({}, props, {
     ref: ref,
     icon: CloseOutlined
   }));
 };
 
 CloseOutlined$1.displayName = 'CloseOutlined';
-var CloseOutlined$2 = React.forwardRef(CloseOutlined$1);
+var CloseOutlined$2 = /*#__PURE__*/React.forwardRef(CloseOutlined$1);
 
 // This icon file is generated automatically.
 var CloudUploadOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "64 64 896 896", "focusable": "false" }, "children": [{ "tag": "path", "attrs": { "d": "M518.3 459a8 8 0 00-12.6 0l-112 141.7a7.98 7.98 0 006.3 12.9h73.9V856c0 4.4 3.6 8 8 8h60c4.4 0 8-3.6 8-8V613.7H624c6.7 0 10.4-7.7 6.3-12.9L518.3 459z" } }, { "tag": "path", "attrs": { "d": "M811.4 366.7C765.6 245.9 648.9 160 512.2 160S258.8 245.8 213 366.6C127.3 389.1 64 467.2 64 560c0 110.5 89.5 200 199.9 200H304c4.4 0 8-3.6 8-8v-60c0-4.4-3.6-8-8-8h-40.1c-33.7 0-65.4-13.4-89-37.7-23.5-24.2-36-56.8-34.9-90.6.9-26.4 9.9-51.2 26.2-72.1 16.7-21.3 40.1-36.8 66.1-43.7l37.9-9.9 13.9-36.6c8.6-22.8 20.6-44.1 35.7-63.4a245.6 245.6 0 0152.4-49.9c41.1-28.9 89.5-44.2 140-44.2s98.9 15.3 140 44.2c19.9 14 37.5 30.8 52.4 49.9 15.1 19.3 27.1 40.7 35.7 63.4l13.8 36.5 37.8 10C846.1 454.5 884 503.8 884 560c0 33.1-12.9 64.3-36.3 87.7a123.07 123.07 0 01-87.6 36.3H720c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h40.1C870.5 760 960 670.5 960 560c0-92.7-63.1-170.7-148.6-193.3z" } }] }, "name": "cloud-upload", "theme": "outlined" };
@@ -1916,14 +1468,14 @@ var CloudUploadOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "64 64
 // GENERATE BY ./scripts/generate.ts
 
 var CloudUploadOutlined$1 = function CloudUploadOutlined$1(props, ref) {
-  return React.createElement(Icon, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(Icon, Object.assign({}, props, {
     ref: ref,
     icon: CloudUploadOutlined
   }));
 };
 
 CloudUploadOutlined$1.displayName = 'CloudUploadOutlined';
-var CloudUploadOutlined$2 = React.forwardRef(CloudUploadOutlined$1);
+var CloudUploadOutlined$2 = /*#__PURE__*/React.forwardRef(CloudUploadOutlined$1);
 
 // This icon file is generated automatically.
 var InboxOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "0 0 1024 1024", "focusable": "false" }, "children": [{ "tag": "path", "attrs": { "d": "M885.2 446.3l-.2-.8-112.2-285.1c-5-16.1-19.9-27.2-36.8-27.2H281.2c-17 0-32.1 11.3-36.9 27.6L139.4 443l-.3.7-.2.8c-1.3 4.9-1.7 9.9-1 14.8-.1 1.6-.2 3.2-.2 4.8V830a60.9 60.9 0 0060.8 60.8h627.2c33.5 0 60.8-27.3 60.9-60.8V464.1c0-1.3 0-2.6-.1-3.7.4-4.9 0-9.6-1.3-14.1zm-295.8-43l-.3 15.7c-.8 44.9-31.8 75.1-77.1 75.1-22.1 0-41.1-7.1-54.8-20.6S436 441.2 435.6 419l-.3-15.7H229.5L309 210h399.2l81.7 193.3H589.4zm-375 76.8h157.3c24.3 57.1 76 90.8 140.4 90.8 33.7 0 65-9.4 90.3-27.2 22.2-15.6 39.5-37.4 50.7-63.6h156.5V814H214.4V480.1z" } }] }, "name": "inbox", "theme": "outlined" };
@@ -1931,14 +1483,14 @@ var InboxOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "0 0 1024 10
 // GENERATE BY ./scripts/generate.ts
 
 var InboxOutlined$1 = function InboxOutlined$1(props, ref) {
-  return React.createElement(Icon, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(Icon, Object.assign({}, props, {
     ref: ref,
     icon: InboxOutlined
   }));
 };
 
 InboxOutlined$1.displayName = 'InboxOutlined';
-var InboxOutlined$2 = React.forwardRef(InboxOutlined$1);
+var InboxOutlined$2 = /*#__PURE__*/React.forwardRef(InboxOutlined$1);
 
 var _extends_1 = createCommonjsModule(function (module) {
 function _extends() {
@@ -2490,7 +2042,22 @@ function toArray(children) {
   return ret;
 }
 
-function _typeof$1(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$1 = function _typeof(obj) { return typeof obj; }; } else { _typeof$1 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$1(obj); }
+function _typeof$1(obj) {
+  "@babel/helpers - typeof";
+
+  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
+    _typeof$1 = function _typeof(obj) {
+      return typeof obj;
+    };
+  } else {
+    _typeof$1 = function _typeof(obj) {
+      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    };
+  }
+
+  return _typeof$1(obj);
+}
+
 function fillRef(ref, node) {
   if (typeof ref === 'function') {
     ref(node);
@@ -3458,177 +3025,20 @@ var index = (function () {
     return ResizeObserver;
 })();
 
-var INTERNAL_PREFIX_KEY = 'rc-observer-key'; // Still need to be compatible with React 15, we use class component here
-
-var ReactResizeObserver = /*#__PURE__*/function (_React$Component) {
-  _inherits$1(ReactResizeObserver, _React$Component);
-
-  var _super = _createSuper$1(ReactResizeObserver);
-
-  function ReactResizeObserver() {
-    var _this;
-
-    _classCallCheck$1(this, ReactResizeObserver);
-
-    _this = _super.apply(this, arguments);
-    _this.resizeObserver = null;
-    _this.childNode = null;
-    _this.currentElement = null;
-    _this.state = {
-      width: 0,
-      height: 0,
-      offsetHeight: 0,
-      offsetWidth: 0
-    };
-
-    _this.onResize = function (entries) {
-      var onResize = _this.props.onResize;
-      var target = entries[0].target;
-
-      var _target$getBoundingCl = target.getBoundingClientRect(),
-          width = _target$getBoundingCl.width,
-          height = _target$getBoundingCl.height;
-
-      var offsetWidth = target.offsetWidth,
-          offsetHeight = target.offsetHeight;
-      /**
-       * Resize observer trigger when content size changed.
-       * In most case we just care about element size,
-       * let's use `boundary` instead of `contentRect` here to avoid shaking.
-       */
-
-      var fixedWidth = Math.floor(width);
-      var fixedHeight = Math.floor(height);
-
-      if (_this.state.width !== fixedWidth || _this.state.height !== fixedHeight || _this.state.offsetWidth !== offsetWidth || _this.state.offsetHeight !== offsetHeight) {
-        var size = {
-          width: fixedWidth,
-          height: fixedHeight,
-          offsetWidth: offsetWidth,
-          offsetHeight: offsetHeight
-        };
-
-        _this.setState(size);
-
-        if (onResize) {
-          // defer the callback but not defer to next frame
-          Promise.resolve().then(function () {
-            onResize(_objectSpread2(_objectSpread2({}, size), {}, {
-              offsetWidth: offsetWidth,
-              offsetHeight: offsetHeight
-            }));
-          });
-        }
-      }
-    };
-
-    _this.setChildNode = function (node) {
-      _this.childNode = node;
-    };
-
-    return _this;
-  }
-
-  _createClass$1(ReactResizeObserver, [{
-    key: "componentDidMount",
-    value: function componentDidMount() {
-      this.onComponentUpdated();
-    }
-  }, {
-    key: "componentDidUpdate",
-    value: function componentDidUpdate() {
-      this.onComponentUpdated();
-    }
-  }, {
-    key: "componentWillUnmount",
-    value: function componentWillUnmount() {
-      this.destroyObserver();
-    }
-  }, {
-    key: "onComponentUpdated",
-    value: function onComponentUpdated() {
-      var disabled = this.props.disabled; // Unregister if disabled
-
-      if (disabled) {
-        this.destroyObserver();
-        return;
-      } // Unregister if element changed
-
-
-      var element = findDOMNode(this.childNode || this);
-      var elementChanged = element !== this.currentElement;
-
-      if (elementChanged) {
-        this.destroyObserver();
-        this.currentElement = element;
-      }
-
-      if (!this.resizeObserver && element) {
-        this.resizeObserver = new index(this.onResize);
-        this.resizeObserver.observe(element);
-      }
-    }
-  }, {
-    key: "destroyObserver",
-    value: function destroyObserver() {
-      if (this.resizeObserver) {
-        this.resizeObserver.disconnect();
-        this.resizeObserver = null;
-      }
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      var children = this.props.children;
-      var childNodes = toArray(children);
-
-      if (childNodes.length > 1) {
-        warningOnce(false, 'Find more than one child node with `children` in ResizeObserver. Will only observe first one.');
-      } else if (childNodes.length === 0) {
-        warningOnce(false, '`children` of ResizeObserver is empty. Nothing is in observe.');
-        return null;
-      }
-
-      var childNode = childNodes[0];
-
-      if (React.isValidElement(childNode) && supportRef(childNode)) {
-        var ref = childNode.ref;
-        childNodes[0] = React.cloneElement(childNode, {
-          ref: composeRef(ref, this.setChildNode)
-        });
-      }
-
-      return childNodes.length === 1 ? childNodes[0] : childNodes.map(function (node, index) {
-        if (!React.isValidElement(node) || 'key' in node && node.key !== null) {
-          return node;
-        }
-
-        return React.cloneElement(node, {
-          key: "".concat(INTERNAL_PREFIX_KEY, "-").concat(index)
-        });
-      });
-    }
-  }]);
-
-  return ReactResizeObserver;
-}(React.Component);
-
-ReactResizeObserver.displayName = 'ResizeObserver';
-
-function _arrayWithoutHoles(arr) {
+function _arrayWithoutHoles$1(arr) {
   if (Array.isArray(arr)) return _arrayLikeToArray(arr);
 }
 
-function _iterableToArray(iter) {
+function _iterableToArray$1(iter) {
   if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter);
 }
 
-function _nonIterableSpread() {
+function _nonIterableSpread$1() {
   throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 
-function _toConsumableArray(arr) {
-  return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread();
+function _toConsumableArray$1(arr) {
+  return _arrayWithoutHoles$1(arr) || _iterableToArray$1(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread$1();
 }
 
 var runtime_1 = createCommonjsModule(function (module) {
@@ -4419,6 +3829,14 @@ function _asyncToGenerator(fn) {
   };
 }
 
+function _arrayWithHoles$1(arr) {
+  if (Array.isArray(arr)) return arr;
+}
+
+function _nonIterableRest$1() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+
 var devWarning = (function (valid, component, message) {
   warningOnce(valid, "[antd: ".concat(component, "] ").concat(message));
 });
@@ -4847,8 +4265,22 @@ var ConfigConsumer = ConfigContext.Consumer;
 
 var SizeContext = /*#__PURE__*/React.createContext(undefined);
 
-function canUseDom() {
-  return !!(typeof window !== 'undefined' && window.document && window.document.createElement);
+function _extends() {
+  _extends = Object.assign || function (target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+
+      for (var key in source) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) {
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
+  };
+
+  return _extends.apply(this, arguments);
 }
 
 // Event wrapper. Copy from react source code
@@ -5370,7 +4802,7 @@ function genCSSMotion(config) {
     return !!(props.motionName && transitionSupport);
   }
 
-  var CSSMotion = React.forwardRef(function (props, ref) {
+  var CSSMotion = /*#__PURE__*/React.forwardRef(function (props, ref) {
     var _props$visible = props.visible,
         visible = _props$visible === void 0 ? true : _props$visible,
         _props$removeOnLeave = props.removeOnLeave,
@@ -5412,19 +4844,23 @@ function genCSSMotion(config) {
 
     var motionChildren;
 
+    var mergedProps = _objectSpread2(_objectSpread2({}, eventProps), {}, {
+      visible: visible
+    });
+
     if (!children) {
       // No children
       motionChildren = null;
     } else if (status === STATUS_NONE || !isSupportTransition(props)) {
       // Stable children
       if (mergedVisible) {
-        motionChildren = children(_objectSpread2({}, eventProps), setNodeRef);
+        motionChildren = children(_objectSpread2({}, mergedProps), setNodeRef);
       } else if (!removeOnLeave) {
-        motionChildren = children(_objectSpread2(_objectSpread2({}, eventProps), {}, {
+        motionChildren = children(_objectSpread2(_objectSpread2({}, mergedProps), {}, {
           className: leavedClassName
         }), setNodeRef);
       } else if (forceRender) {
-        motionChildren = children(_objectSpread2(_objectSpread2({}, eventProps), {}, {
+        motionChildren = children(_objectSpread2(_objectSpread2({}, mergedProps), {}, {
           style: {
             display: 'none'
           }
@@ -5446,13 +4882,13 @@ function genCSSMotion(config) {
         statusSuffix = 'start';
       }
 
-      motionChildren = children(_objectSpread2(_objectSpread2({}, eventProps), {}, {
+      motionChildren = children(_objectSpread2(_objectSpread2({}, mergedProps), {}, {
         className: classnames(getTransitionName(motionName, status), (_classNames = {}, _defineProperty(_classNames, getTransitionName(motionName, "".concat(status, "-").concat(statusSuffix)), statusSuffix), _defineProperty(_classNames, motionName, typeof motionName === 'string'), _classNames)),
         style: statusStyle
       }), setNodeRef);
     }
 
-    return React.createElement(DomWrapper, {
+    return /*#__PURE__*/React.createElement(DomWrapper, {
       ref: wrapperNodeRef
     }, motionChildren);
   });
@@ -5628,12 +5064,12 @@ function genCSSMotionList(transitionSupport) {
           delete restProps[prop];
         });
         delete restProps.keys;
-        return React.createElement(Component, Object.assign({}, restProps), keyEntities.map(function (_ref2) {
+        return /*#__PURE__*/React.createElement(Component, Object.assign({}, restProps), keyEntities.map(function (_ref2) {
           var status = _ref2.status,
               eventProps = _objectWithoutProperties(_ref2, ["status"]);
 
           var visible = status === STATUS_ADD || status === STATUS_KEEP;
-          return React.createElement(CSSMotion$1, Object.assign({}, motionProps, {
+          return /*#__PURE__*/React.createElement(CSSMotion$1, Object.assign({}, motionProps, {
             key: eventProps.key,
             visible: visible,
             eventProps: eventProps,
@@ -5775,24 +5211,24 @@ var Notice = /*#__PURE__*/function (_Component) {
 
         return acc;
       }, {});
-      var node = React.createElement("div", Object.assign({
+      var node = /*#__PURE__*/React.createElement("div", _extends({
         className: classnames(componentClass, className, _defineProperty({}, "".concat(componentClass, "-closable"), closable)),
         style: style,
         onMouseEnter: this.clearCloseTimer,
         onMouseLeave: this.startCloseTimer,
         onClick: onClick
-      }, dataOrAriaAttributeProps), React.createElement("div", {
+      }, dataOrAriaAttributeProps), /*#__PURE__*/React.createElement("div", {
         className: "".concat(componentClass, "-content")
-      }, children), closable ? React.createElement("a", {
+      }, children), closable ? /*#__PURE__*/React.createElement("a", {
         tabIndex: 0,
         onClick: this.close,
         className: "".concat(componentClass, "-close")
-      }, closeIcon || React.createElement("span", {
+      }, closeIcon || /*#__PURE__*/React.createElement("span", {
         className: "".concat(componentClass, "-close-x")
       })) : null);
 
       if (holder) {
-        return ReactDOM__default['default'].createPortal(node, holder);
+        return /*#__PURE__*/ReactDOM__default['default'].createPortal(node, holder);
       }
 
       return node;
@@ -5815,22 +5251,36 @@ function useNotification(notificationInstance) {
       setElements = _React$useState2[1];
 
   function notify(noticeProps) {
+    var firstMount = true;
     notificationInstance.add(noticeProps, function (div, props) {
       var key = props.key;
 
-      if (div && !createdRef.current[key]) {
-        var noticeEle = React.createElement(Notice, Object.assign({}, props, {
+      if (div && (!createdRef.current[key] || firstMount)) {
+        var noticeEle = /*#__PURE__*/React.createElement(Notice, _extends({}, props, {
           holder: div
         }));
         createdRef.current[key] = noticeEle;
         setElements(function (originElements) {
-          return [].concat(_toConsumableArray(originElements), [noticeEle]);
+          var index = originElements.findIndex(function (ele) {
+            return ele.key === props.key;
+          });
+
+          if (index === -1) {
+            return [].concat(_toConsumableArray$1(originElements), [noticeEle]);
+          }
+
+          var cloneList = _toConsumableArray$1(originElements);
+
+          cloneList[index] = noticeEle;
+          return cloneList;
         });
       }
+
+      firstMount = false;
     });
   }
 
-  return [notify, React.createElement(React.Fragment, null, elements)];
+  return [notify, /*#__PURE__*/React.createElement(React.Fragment, null, elements)];
 }
 
 var seed = 0;
@@ -5986,10 +5436,10 @@ var Notification = /*#__PURE__*/function (_Component) {
           holderCallback: holderCallback
         };
       });
-      return React.createElement("div", {
+      return /*#__PURE__*/React.createElement("div", {
         className: classnames(prefixCls, className),
         style: style
-      }, React.createElement(CSSMotionList, {
+      }, /*#__PURE__*/React.createElement(CSSMotionList, {
         keys: noticeKeys,
         motionName: this.getTransitionName(),
         onVisibleChanged: function onVisibleChanged(changedVisible, _ref4) {
@@ -6008,7 +5458,7 @@ var Notification = /*#__PURE__*/function (_Component) {
             holderCallback = _this2$noticePropsMap.holderCallback;
 
         if (holderCallback) {
-          return React.createElement("div", {
+          return /*#__PURE__*/React.createElement("div", {
             key: key,
             className: classnames(motionClassName, "".concat(prefixCls, "-hook-holder")),
             style: _objectSpread2({}, motionStyle),
@@ -6028,7 +5478,7 @@ var Notification = /*#__PURE__*/function (_Component) {
           });
         }
 
-        return React.createElement(Notice, Object.assign({}, noticeProps, {
+        return /*#__PURE__*/React.createElement(Notice, _extends({}, noticeProps, {
           className: classnames(motionClassName, noticeProps === null || noticeProps === void 0 ? void 0 : noticeProps.className),
           style: _objectSpread2(_objectSpread2({}, motionStyle), noticeProps === null || noticeProps === void 0 ? void 0 : noticeProps.style)
         }));
@@ -6094,13 +5544,13 @@ Notification.newInstance = function newNotificationInstance(properties, callback
 
 
   if (process.env.NODE_ENV === 'test' && properties.TEST_RENDER) {
-    properties.TEST_RENDER(React.createElement(Notification, Object.assign({}, props, {
+    properties.TEST_RENDER( /*#__PURE__*/React.createElement(Notification, _extends({}, props, {
       ref: ref
     })));
     return;
   }
 
-  ReactDOM__default['default'].render(React.createElement(Notification, Object.assign({}, props, {
+  ReactDOM__default['default'].render( /*#__PURE__*/React.createElement(Notification, _extends({}, props, {
     ref: ref
   })), div);
 };
@@ -6178,11 +5628,11 @@ var LoadingOutlined = { "icon": { "tag": "svg", "attrs": { "viewBox": "0 0 1024 
 exports.default = LoadingOutlined;
 });
 
-function _arrayWithHoles$1(arr) {
+function _arrayWithHoles$2(arr) {
   if (Array.isArray(arr)) return arr;
 }
 
-var arrayWithHoles = _arrayWithHoles$1;
+var arrayWithHoles = _arrayWithHoles$2;
 
 function _iterableToArrayLimit$1(arr, i) {
   if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return;
@@ -6213,7 +5663,7 @@ function _iterableToArrayLimit$1(arr, i) {
 
 var iterableToArrayLimit = _iterableToArrayLimit$1;
 
-function _arrayLikeToArray$1(arr, len) {
+function _arrayLikeToArray$2(arr, len) {
   if (len == null || len > arr.length) len = arr.length;
 
   for (var i = 0, arr2 = new Array(len); i < len; i++) {
@@ -6223,9 +5673,9 @@ function _arrayLikeToArray$1(arr, len) {
   return arr2;
 }
 
-var arrayLikeToArray = _arrayLikeToArray$1;
+var arrayLikeToArray = _arrayLikeToArray$2;
 
-function _unsupportedIterableToArray$1(o, minLen) {
+function _unsupportedIterableToArray$2(o, minLen) {
   if (!o) return;
   if (typeof o === "string") return arrayLikeToArray(o, minLen);
   var n = Object.prototype.toString.call(o).slice(8, -1);
@@ -6234,13 +5684,13 @@ function _unsupportedIterableToArray$1(o, minLen) {
   if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return arrayLikeToArray(o, minLen);
 }
 
-var unsupportedIterableToArray = _unsupportedIterableToArray$1;
+var unsupportedIterableToArray = _unsupportedIterableToArray$2;
 
-function _nonIterableRest$1() {
+function _nonIterableRest$2() {
   throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 
-var nonIterableRest = _nonIterableRest$1;
+var nonIterableRest = _nonIterableRest$2;
 
 function _slicedToArray$1(arr, i) {
   return arrayWithHoles(arr) || iterableToArrayLimit(arr, i) || unsupportedIterableToArray(arr, i) || nonIterableRest();
@@ -6285,6 +5735,20 @@ function _objectWithoutProperties$1(source, excluded) {
 }
 
 var objectWithoutProperties = _objectWithoutProperties$1;
+
+var Context = createCommonjsModule(function (module, exports) {
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+
+
+var IconContext = /*#__PURE__*/(0, React__default['default'].createContext)({});
+var _default = IconContext;
+exports.default = _default;
+});
 
 function ownKeys$1(object, enumerableOnly) {
   var keys = Object.keys(object);
@@ -6377,6 +5841,190 @@ var _default = warningOnce;
 exports.default = _default;
 });
 
+var interopRequireDefault$1 = createCommonjsModule(function (module) {
+function _interopRequireDefault(obj) {
+  return obj && obj.__esModule ? obj : {
+    "default": obj
+  };
+}
+
+module.exports = _interopRequireDefault;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var arrayLikeToArray$1 = createCommonjsModule(function (module) {
+function _arrayLikeToArray(arr, len) {
+  if (len == null || len > arr.length) len = arr.length;
+
+  for (var i = 0, arr2 = new Array(len); i < len; i++) {
+    arr2[i] = arr[i];
+  }
+
+  return arr2;
+}
+
+module.exports = _arrayLikeToArray;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var arrayWithoutHoles = createCommonjsModule(function (module) {
+function _arrayWithoutHoles(arr) {
+  if (Array.isArray(arr)) return arrayLikeToArray$1(arr);
+}
+
+module.exports = _arrayWithoutHoles;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var iterableToArray = createCommonjsModule(function (module) {
+function _iterableToArray(iter) {
+  if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter);
+}
+
+module.exports = _iterableToArray;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var unsupportedIterableToArray$1 = createCommonjsModule(function (module) {
+function _unsupportedIterableToArray(o, minLen) {
+  if (!o) return;
+  if (typeof o === "string") return arrayLikeToArray$1(o, minLen);
+  var n = Object.prototype.toString.call(o).slice(8, -1);
+  if (n === "Object" && o.constructor) n = o.constructor.name;
+  if (n === "Map" || n === "Set") return Array.from(o);
+  if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return arrayLikeToArray$1(o, minLen);
+}
+
+module.exports = _unsupportedIterableToArray;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var nonIterableSpread = createCommonjsModule(function (module) {
+function _nonIterableSpread() {
+  throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+
+module.exports = _nonIterableSpread;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var toConsumableArray = createCommonjsModule(function (module) {
+function _toConsumableArray(arr) {
+  return arrayWithoutHoles(arr) || iterableToArray(arr) || unsupportedIterableToArray$1(arr) || nonIterableSpread();
+}
+
+module.exports = _toConsumableArray;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var canUseDom_1 = createCommonjsModule(function (module, exports) {
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = canUseDom;
+
+function canUseDom() {
+  return !!(typeof window !== 'undefined' && window.document && window.document.createElement);
+}
+});
+
+var dynamicCSS = createCommonjsModule(function (module, exports) {
+
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.injectCSS = injectCSS;
+exports.updateCSS = updateCSS;
+
+var _toConsumableArray2 = interopRequireDefault$1(toConsumableArray);
+
+var _canUseDom = interopRequireDefault$1(canUseDom_1);
+
+var MARK_KEY = "rc-util-key";
+
+function getContainer(option) {
+  if (option.attachTo) {
+    return option.attachTo;
+  }
+
+  var head = document.querySelector('head');
+  return head || document.body;
+}
+
+function injectCSS(css) {
+  var _option$csp;
+
+  var option = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  if (!(0, _canUseDom.default)()) {
+    return null;
+  }
+
+  var styleNode = document.createElement('style');
+
+  if ((_option$csp = option.csp) === null || _option$csp === void 0 ? void 0 : _option$csp.nonce) {
+    var _option$csp2;
+
+    styleNode.nonce = (_option$csp2 = option.csp) === null || _option$csp2 === void 0 ? void 0 : _option$csp2.nonce;
+  }
+
+  styleNode.innerHTML = css;
+  var container = getContainer(option);
+  var firstChild = container.firstChild;
+
+  if (option.prepend && firstChild) {
+    container.insertBefore(styleNode, firstChild);
+  } else {
+    container.appendChild(styleNode);
+  }
+
+  return styleNode;
+}
+
+var containerCache = new Map();
+
+function updateCSS(css, key) {
+  var option = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var container = getContainer(option); // Get real parent
+
+  if (!containerCache.has(container)) {
+    var placeholderStyle = injectCSS('', option);
+    var parentElement = placeholderStyle.parentElement;
+    containerCache.set(container, parentElement);
+    parentElement.removeChild(placeholderStyle);
+  }
+
+  var existNode = (0, _toConsumableArray2.default)(containerCache.get(container).children).find(function (node) {
+    return node.tagName === 'STYLE' && node[MARK_KEY] === key;
+  });
+
+  if (existNode) {
+    var _option$csp3, _option$csp4;
+
+    if (((_option$csp3 = option.csp) === null || _option$csp3 === void 0 ? void 0 : _option$csp3.nonce) && existNode.nonce !== ((_option$csp4 = option.csp) === null || _option$csp4 === void 0 ? void 0 : _option$csp4.nonce)) {
+      var _option$csp5;
+
+      existNode.nonce = (_option$csp5 = option.csp) === null || _option$csp5 === void 0 ? void 0 : _option$csp5.nonce;
+    }
+
+    if (existNode.innerHTML !== css) {
+      existNode.innerHTML = css;
+    }
+
+    return existNode;
+  }
+
+  var newNode = injectCSS(css, option);
+  newNode[MARK_KEY] = key;
+  return newNode;
+}
+});
+
+var _colors = /*@__PURE__*/getAugmentedNamespace(index_esm);
+
 var utils = createCommonjsModule(function (module, exports) {
 
 
@@ -6405,6 +6053,8 @@ var _react = interopRequireWildcard(React__default['default']);
 var _warning = interopRequireDefault(warning_1);
 
 
+
+var _Context = interopRequireDefault(Context);
 
 function warning(valid, message) {
   (0, _warning.default)(valid, "[@ant-design/icons] ".concat(message));
@@ -6435,14 +6085,14 @@ function normalizeAttrs() {
 
 function generate(node, key, rootProps) {
   if (!rootProps) {
-    return _react.default.createElement(node.tag, (0, _objectSpread2.default)({
+    return /*#__PURE__*/_react.default.createElement(node.tag, (0, _objectSpread2.default)({
       key: key
     }, normalizeAttrs(node.attrs)), (node.children || []).map(function (child, index) {
       return generate(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
     }));
   }
 
-  return _react.default.createElement(node.tag, (0, _objectSpread2.default)((0, _objectSpread2.default)({
+  return /*#__PURE__*/_react.default.createElement(node.tag, (0, _objectSpread2.default)((0, _objectSpread2.default)({
     key: key
   }, normalizeAttrs(node.attrs)), rootProps), (node.children || []).map(function (child, index) {
     return generate(child, "".concat(key, "-").concat(node.tag, "-").concat(index));
@@ -6451,7 +6101,7 @@ function generate(node, key, rootProps) {
 
 function getSecondaryColor(primaryColor) {
   // choose the second color
-  return (0, lib.generate)(primaryColor)[0];
+  return (0, _colors.generate)(primaryColor)[0];
 }
 
 function normalizeTwoToneColors(twoToneColor) {
@@ -6474,17 +6124,18 @@ var svgBaseProps = {
 exports.svgBaseProps = svgBaseProps;
 var iconStyles = "\n.anticon {\n  display: inline-block;\n  color: inherit;\n  font-style: normal;\n  line-height: 0;\n  text-align: center;\n  text-transform: none;\n  vertical-align: -0.125em;\n  text-rendering: optimizeLegibility;\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n}\n\n.anticon > * {\n  line-height: 1;\n}\n\n.anticon svg {\n  display: inline-block;\n}\n\n.anticon::before {\n  display: none;\n}\n\n.anticon .anticon-icon {\n  display: block;\n}\n\n.anticon[tabindex] {\n  cursor: pointer;\n}\n\n.anticon-spin::before,\n.anticon-spin {\n  display: inline-block;\n  -webkit-animation: loadingCircle 1s infinite linear;\n  animation: loadingCircle 1s infinite linear;\n}\n\n@-webkit-keyframes loadingCircle {\n  100% {\n    -webkit-transform: rotate(360deg);\n    transform: rotate(360deg);\n  }\n}\n\n@keyframes loadingCircle {\n  100% {\n    -webkit-transform: rotate(360deg);\n    transform: rotate(360deg);\n  }\n}\n";
 exports.iconStyles = iconStyles;
-var cssInjectedFlag = false;
 
 var useInsertStyles = function useInsertStyles() {
   var styleStr = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : iconStyles;
+
+  var _useContext = (0, _react.useContext)(_Context.default),
+      csp = _useContext.csp;
+
   (0, _react.useEffect)(function () {
-    if (!cssInjectedFlag) {
-      (0, insertCss_1.insertCss)(styleStr, {
-        prepend: true
-      });
-      cssInjectedFlag = true;
-    }
+    (0, dynamicCSS.updateCSS)(styleStr, '@ant-design-icons', {
+      prepend: true,
+      csp: csp
+    });
   }, []);
 };
 
@@ -6635,6 +6286,8 @@ var React = interopRequireWildcard(React__default['default']);
 
 var _classnames = interopRequireDefault(classnames);
 
+var _Context = interopRequireDefault(Context);
+
 var _IconBase = interopRequireDefault(IconBase_1);
 
 
@@ -6644,7 +6297,9 @@ var _IconBase = interopRequireDefault(IconBase_1);
 // Initial setting
 // should move it to antd main repo?
 (0, twoTonePrimaryColor.setTwoToneColor)('#1890ff');
-var Icon = React.forwardRef(function (props, ref) {
+var Icon = /*#__PURE__*/React.forwardRef(function (props, ref) {
+  var _classNames;
+
   var className = props.className,
       icon = props.icon,
       spin = props.spin,
@@ -6653,10 +6308,12 @@ var Icon = React.forwardRef(function (props, ref) {
       onClick = props.onClick,
       twoToneColor = props.twoToneColor,
       restProps = (0, _objectWithoutProperties2.default)(props, ["className", "icon", "spin", "rotate", "tabIndex", "onClick", "twoToneColor"]);
-  var classString = (0, _classnames.default)('anticon', (0, _defineProperty2.default)({}, "anticon-".concat(icon.name), Boolean(icon.name)), className);
-  var svgClassString = (0, _classnames.default)({
-    'anticon-spin': !!spin || icon.name === 'loading'
-  });
+
+  var _React$useContext = React.useContext(_Context.default),
+      _React$useContext$pre = _React$useContext.prefixCls,
+      prefixCls = _React$useContext$pre === void 0 ? 'anticon' : _React$useContext$pre;
+
+  var classString = (0, _classnames.default)(prefixCls, (_classNames = {}, (0, _defineProperty2.default)(_classNames, "".concat(prefixCls, "-").concat(icon.name), !!icon.name), (0, _defineProperty2.default)(_classNames, "".concat(prefixCls, "-spin"), !!spin || icon.name === 'loading'), _classNames), className);
   var iconTabIndex = tabIndex;
 
   if (iconTabIndex === undefined && onClick) {
@@ -6673,7 +6330,7 @@ var Icon = React.forwardRef(function (props, ref) {
       primaryColor = _normalizeTwoToneColo2[0],
       secondaryColor = _normalizeTwoToneColo2[1];
 
-  return React.createElement("span", Object.assign({
+  return /*#__PURE__*/React.createElement("span", Object.assign({
     role: "img",
     "aria-label": icon.name
   }, restProps, {
@@ -6681,8 +6338,7 @@ var Icon = React.forwardRef(function (props, ref) {
     tabIndex: iconTabIndex,
     onClick: onClick,
     className: classString
-  }), React.createElement(_IconBase.default, {
-    className: svgClassString,
+  }), /*#__PURE__*/React.createElement(_IconBase.default, {
     icon: icon,
     primaryColor: primaryColor,
     secondaryColor: secondaryColor,
@@ -6716,7 +6372,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var LoadingOutlined = function LoadingOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _LoadingOutlined.default
   }));
@@ -6724,7 +6380,7 @@ var LoadingOutlined = function LoadingOutlined(props, ref) {
 
 LoadingOutlined.displayName = 'LoadingOutlined';
 
-var _default = React.forwardRef(LoadingOutlined);
+var _default = /*#__PURE__*/React.forwardRef(LoadingOutlined);
 
 exports.default = _default;
 });
@@ -6773,7 +6429,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var ExclamationCircleFilled = function ExclamationCircleFilled(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _ExclamationCircleFilled.default
   }));
@@ -6781,7 +6437,7 @@ var ExclamationCircleFilled = function ExclamationCircleFilled(props, ref) {
 
 ExclamationCircleFilled.displayName = 'ExclamationCircleFilled';
 
-var _default = React.forwardRef(ExclamationCircleFilled);
+var _default = /*#__PURE__*/React.forwardRef(ExclamationCircleFilled);
 
 exports.default = _default;
 });
@@ -6830,7 +6486,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var CloseCircleFilled = function CloseCircleFilled(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _CloseCircleFilled.default
   }));
@@ -6838,7 +6494,7 @@ var CloseCircleFilled = function CloseCircleFilled(props, ref) {
 
 CloseCircleFilled.displayName = 'CloseCircleFilled';
 
-var _default = React.forwardRef(CloseCircleFilled);
+var _default = /*#__PURE__*/React.forwardRef(CloseCircleFilled);
 
 exports.default = _default;
 });
@@ -6887,7 +6543,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var CheckCircleFilled = function CheckCircleFilled(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _CheckCircleFilled.default
   }));
@@ -6895,7 +6551,7 @@ var CheckCircleFilled = function CheckCircleFilled(props, ref) {
 
 CheckCircleFilled.displayName = 'CheckCircleFilled';
 
-var _default = React.forwardRef(CheckCircleFilled);
+var _default = /*#__PURE__*/React.forwardRef(CheckCircleFilled);
 
 exports.default = _default;
 });
@@ -6944,7 +6600,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var InfoCircleFilled = function InfoCircleFilled(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _InfoCircleFilled.default
   }));
@@ -6952,7 +6608,7 @@ var InfoCircleFilled = function InfoCircleFilled(props, ref) {
 
 InfoCircleFilled.displayName = 'InfoCircleFilled';
 
-var _default = React.forwardRef(InfoCircleFilled);
+var _default = /*#__PURE__*/React.forwardRef(InfoCircleFilled);
 
 exports.default = _default;
 });
@@ -7054,7 +6710,7 @@ var defaultTop;
 var key = 1;
 var localPrefixCls = 'ant-message';
 var transitionName = 'move-up';
-var getContainer;
+var getContainer$1;
 var maxCount;
 var rtl = false;
 function getKeyThenIncreaseKey() {
@@ -7076,7 +6732,7 @@ function setMessageConfig(options) {
   }
 
   if (options.getContainer !== undefined) {
-    getContainer = options.getContainer;
+    getContainer$1 = options.getContainer;
   }
 
   if (options.transitionName !== undefined) {
@@ -7111,7 +6767,7 @@ function getRCNotificationInstance(args, callback) {
     style: {
       top: defaultTop
     },
-    getContainer: getContainer,
+    getContainer: getContainer$1,
     maxCount: maxCount
   }, function (instance) {
     if (messageInstance) {
@@ -7267,7 +6923,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var CloseOutlined = function CloseOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _CloseOutlined.default
   }));
@@ -7275,7 +6931,7 @@ var CloseOutlined = function CloseOutlined(props, ref) {
 
 CloseOutlined.displayName = 'CloseOutlined';
 
-var _default = React.forwardRef(CloseOutlined);
+var _default = /*#__PURE__*/React.forwardRef(CloseOutlined);
 
 exports.default = _default;
 });
@@ -8055,17 +7711,37 @@ var KeyCode = {
   }
 };
 
-function _slicedToArray$2(arr, i) { return _arrayWithHoles$2(arr) || _iterableToArrayLimit$2(arr, i) || _unsupportedIterableToArray$2(arr, i) || _nonIterableRest$2(); }
+function _iterableToArrayLimit$2(arr, i) {
+  if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return;
+  var _arr = [];
+  var _n = true;
+  var _d = false;
+  var _e = undefined;
 
-function _nonIterableRest$2() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+  try {
+    for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+      _arr.push(_s.value);
 
-function _unsupportedIterableToArray$2(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray$2(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray$2(o, minLen); }
+      if (i && _arr.length === i) break;
+    }
+  } catch (err) {
+    _d = true;
+    _e = err;
+  } finally {
+    try {
+      if (!_n && _i["return"] != null) _i["return"]();
+    } finally {
+      if (_d) throw _e;
+    }
+  }
 
-function _arrayLikeToArray$2(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
+  return _arr;
+}
 
-function _iterableToArrayLimit$2(arr, i) { if (typeof Symbol === "undefined" || !(Symbol.iterator in Object(arr))) return; var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+function _slicedToArray$2(arr, i) {
+  return _arrayWithHoles$1(arr) || _iterableToArrayLimit$2(arr, i) || _unsupportedIterableToArray$1(arr, i) || _nonIterableRest$1();
+}
 
-function _arrayWithHoles$2(arr) { if (Array.isArray(arr)) return arr; }
 function useControlledState(defaultStateValue, option) {
   var _ref = option || {},
       defaultValue = _ref.defaultValue,
@@ -8183,24 +7859,6 @@ function getAlignPopupClassName(builtinPlacements, prefixCls, align, isAlignPoin
   }
 
   return '';
-}
-
-function _extends() {
-  _extends = Object.assign || function (target) {
-    for (var i = 1; i < arguments.length; i++) {
-      var source = arguments[i];
-
-      for (var key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-          target[key] = source[key];
-        }
-      }
-    }
-
-    return target;
-  };
-
-  return _extends.apply(this, arguments);
 }
 
 function getMotion(_ref) {
@@ -9024,7 +8682,7 @@ each(['width', 'height'], function (name) {
   };
 });
 
-function mix(to, from) {
+function mix$1(to, from) {
   for (var i in from) {
     if (from.hasOwnProperty(i)) {
       to[i] = from[i];
@@ -9076,7 +8734,7 @@ var utils$1 = {
 
     return ret;
   },
-  mix: mix,
+  mix: mix$1,
   getWindowScrollLeft: function getWindowScrollLeft(w) {
     return getScrollLeft(w);
   },
@@ -9095,7 +8753,7 @@ var utils$1 = {
   viewportWidth: 0,
   viewportHeight: 0
 };
-mix(utils$1, domUtils);
+mix$1(utils$1, domUtils);
 
 /**
  * 得到会导致元素显示不全的祖先元素
@@ -9759,7 +9417,8 @@ var Align = function Align(_ref, ref) {
   var _useBuffer = useBuffer(function () {
     var _forceAlignPropsRef$c = forceAlignPropsRef.current,
         latestDisabled = _forceAlignPropsRef$c.disabled,
-        latestTarget = _forceAlignPropsRef$c.target;
+        latestTarget = _forceAlignPropsRef$c.target,
+        latestOnAlign = _forceAlignPropsRef$c.onAlign;
 
     if (!latestDisabled && latestTarget) {
       var source = nodeRef.current;
@@ -9781,8 +9440,8 @@ var Align = function Align(_ref, ref) {
 
       restoreFocus(activeElement, source);
 
-      if (onAlign && result) {
-        onAlign(source, result);
+      if (latestOnAlign && result) {
+        latestOnAlign(source, result);
       }
 
       return true;
@@ -11361,7 +11020,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var EllipsisOutlined = function EllipsisOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _EllipsisOutlined.default
   }));
@@ -11369,7 +11028,7 @@ var EllipsisOutlined = function EllipsisOutlined(props, ref) {
 
 EllipsisOutlined.displayName = 'EllipsisOutlined';
 
-var _default = React.forwardRef(EllipsisOutlined);
+var _default = /*#__PURE__*/React.forwardRef(EllipsisOutlined);
 
 exports.default = _default;
 });
@@ -12314,332 +11973,6 @@ function createChainedFunction() {
       }
     }
   };
-}
-
-var __rest$3 = undefined && undefined.__rest || function (s, e) {
-  var t = {};
-
-  for (var p in s) {
-    if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
-  }
-
-  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
-  }
-  return t;
-};
-
-var Grid = function Grid(props) {
-  return /*#__PURE__*/React.createElement(ConfigConsumer, null, function (_ref) {
-    var getPrefixCls = _ref.getPrefixCls;
-
-    var customizePrefixCls = props.prefixCls,
-        className = props.className,
-        _props$hoverable = props.hoverable,
-        hoverable = _props$hoverable === void 0 ? true : _props$hoverable,
-        others = __rest$3(props, ["prefixCls", "className", "hoverable"]);
-
-    var prefixCls = getPrefixCls('card', customizePrefixCls);
-    var classString = classnames("".concat(prefixCls, "-grid"), className, defineProperty({}, "".concat(prefixCls, "-grid-hoverable"), hoverable));
-    return /*#__PURE__*/React.createElement("div", _extends_1({}, others, {
-      className: classString
-    }));
-  });
-};
-
-var __rest$4 = undefined && undefined.__rest || function (s, e) {
-  var t = {};
-
-  for (var p in s) {
-    if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
-  }
-
-  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
-  }
-  return t;
-};
-
-var Meta = function Meta(props) {
-  return /*#__PURE__*/React.createElement(ConfigConsumer, null, function (_ref) {
-    var getPrefixCls = _ref.getPrefixCls;
-
-    var customizePrefixCls = props.prefixCls,
-        className = props.className,
-        avatar = props.avatar,
-        title = props.title,
-        description = props.description,
-        others = __rest$4(props, ["prefixCls", "className", "avatar", "title", "description"]);
-
-    var prefixCls = getPrefixCls('card', customizePrefixCls);
-    var classString = classnames("".concat(prefixCls, "-meta"), className);
-    var avatarDom = avatar ? /*#__PURE__*/React.createElement("div", {
-      className: "".concat(prefixCls, "-meta-avatar")
-    }, avatar) : null;
-    var titleDom = title ? /*#__PURE__*/React.createElement("div", {
-      className: "".concat(prefixCls, "-meta-title")
-    }, title) : null;
-    var descriptionDom = description ? /*#__PURE__*/React.createElement("div", {
-      className: "".concat(prefixCls, "-meta-description")
-    }, description) : null;
-    var MetaDetail = titleDom || descriptionDom ? /*#__PURE__*/React.createElement("div", {
-      className: "".concat(prefixCls, "-meta-detail")
-    }, titleDom, descriptionDom) : null;
-    return /*#__PURE__*/React.createElement("div", _extends_1({}, others, {
-      className: classString
-    }), avatarDom, MetaDetail);
-  });
-};
-
-function useRaf(callback) {
-  var rafRef = React.useRef();
-  var removedRef = React.useRef(false);
-
-  function trigger() {
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    if (!removedRef.current) {
-      raf_1.cancel(rafRef.current);
-      rafRef.current = raf_1(function () {
-        callback.apply(void 0, args);
-      });
-    }
-  }
-
-  React.useEffect(function () {
-    return function () {
-      removedRef.current = true;
-      raf_1.cancel(rafRef.current);
-    };
-  }, []);
-  return trigger;
-}
-function useRafState(defaultState) {
-  var batchRef = React.useRef([]);
-
-  var _useState = React.useState({}),
-      _useState2 = _slicedToArray(_useState, 2),
-      forceUpdate = _useState2[1];
-
-  var state = React.useRef(typeof defaultState === 'function' ? defaultState() : defaultState);
-  var flushUpdate = useRaf(function () {
-    var current = state.current;
-    batchRef.current.forEach(function (callback) {
-      current = callback(current);
-    });
-    batchRef.current = [];
-    state.current = current;
-    forceUpdate({});
-  });
-
-  function updater(callback) {
-    batchRef.current.push(callback);
-    flushUpdate();
-  }
-
-  return [state.current, updater];
-}
-
-function TabNode(_ref, ref) {
-  var _classNames;
-
-  var prefixCls = _ref.prefixCls,
-      id = _ref.id,
-      active = _ref.active,
-      rtl = _ref.rtl,
-      _ref$tab = _ref.tab,
-      key = _ref$tab.key,
-      tab = _ref$tab.tab,
-      disabled = _ref$tab.disabled,
-      closeIcon = _ref$tab.closeIcon,
-      tabBarGutter = _ref.tabBarGutter,
-      tabPosition = _ref.tabPosition,
-      closable = _ref.closable,
-      renderWrapper = _ref.renderWrapper,
-      removeAriaLabel = _ref.removeAriaLabel,
-      editable = _ref.editable,
-      onClick = _ref.onClick,
-      onRemove = _ref.onRemove,
-      onFocus = _ref.onFocus;
-  var tabPrefix = "".concat(prefixCls, "-tab");
-  React.useEffect(function () {
-    return onRemove;
-  }, []);
-  var nodeStyle = {};
-
-  if (tabPosition === 'top' || tabPosition === 'bottom') {
-    nodeStyle[rtl ? 'marginLeft' : 'marginRight'] = tabBarGutter;
-  } else {
-    nodeStyle.marginBottom = tabBarGutter;
-  }
-
-  var removable = editable && closable !== false && !disabled;
-
-  function onInternalClick(e) {
-    if (disabled) return;
-    onClick(e);
-  }
-
-  function onRemoveTab(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    editable.onEdit('remove', {
-      key: key,
-      event: event
-    });
-  }
-
-  var node = React.createElement("div", {
-    key: key,
-    ref: ref,
-    className: classnames(tabPrefix, (_classNames = {}, _defineProperty(_classNames, "".concat(tabPrefix, "-with-remove"), removable), _defineProperty(_classNames, "".concat(tabPrefix, "-active"), active), _defineProperty(_classNames, "".concat(tabPrefix, "-disabled"), disabled), _classNames)),
-    style: nodeStyle,
-    onClick: onInternalClick
-  }, React.createElement("div", {
-    role: "tab",
-    "aria-selected": active,
-    id: id && "".concat(id, "-tab-").concat(key),
-    className: "".concat(tabPrefix, "-btn"),
-    "aria-controls": id && "".concat(id, "-panel-").concat(key),
-    "aria-disabled": disabled,
-    tabIndex: disabled ? null : 0,
-    onClick: function onClick(e) {
-      e.stopPropagation();
-      onInternalClick(e);
-    },
-    onKeyDown: function onKeyDown(e) {
-      if ([KeyCode.SPACE, KeyCode.ENTER].includes(e.which)) {
-        e.preventDefault();
-        onInternalClick(e);
-      }
-    },
-    onFocus: onFocus
-  }, tab), removable && React.createElement("button", {
-    type: "button",
-    "aria-label": removeAriaLabel || 'remove',
-    tabIndex: 0,
-    className: "".concat(tabPrefix, "-remove"),
-    onClick: function onClick(e) {
-      e.stopPropagation();
-      onRemoveTab(e);
-    }
-  }, closeIcon || editable.removeIcon || '×'));
-
-  if (renderWrapper) {
-    node = renderWrapper(node);
-  }
-
-  return node;
-}
-
-var TabNode$1 = React.forwardRef(TabNode);
-
-var DEFAULT_SIZE = {
-  width: 0,
-  height: 0,
-  left: 0,
-  top: 0
-};
-function useOffsets(tabs, tabSizes, holderScrollWidth) {
-  return React.useMemo(function () {
-    var _tabs$;
-
-    var map = new Map();
-    var lastOffset = tabSizes.get((_tabs$ = tabs[0]) === null || _tabs$ === void 0 ? void 0 : _tabs$.key) || DEFAULT_SIZE;
-    var rightOffset = lastOffset.left + lastOffset.width;
-
-    for (var i = 0; i < tabs.length; i += 1) {
-      var key = tabs[i].key;
-      var data = tabSizes.get(key); // Reuse last one when not exist yet
-
-      if (!data) {
-        var _tabs;
-
-        data = tabSizes.get((_tabs = tabs[i - 1]) === null || _tabs === void 0 ? void 0 : _tabs.key) || DEFAULT_SIZE;
-      }
-
-      var entity = map.get(key) || _objectSpread2({}, data); // Right
-
-
-      entity.right = rightOffset - entity.left - entity.width; // Update entity
-
-      map.set(key, entity);
-    }
-
-    return map;
-  }, [tabs.map(function (tab) {
-    return tab.key;
-  }).join('_'), tabSizes, holderScrollWidth]);
-}
-
-var DEFAULT_SIZE$1 = {
-  width: 0,
-  height: 0,
-  left: 0,
-  top: 0,
-  right: 0
-};
-function useVisibleRange(tabOffsets, containerSize, tabContentNodeSize, addNodeSize, _ref) {
-  var tabs = _ref.tabs,
-      tabPosition = _ref.tabPosition,
-      rtl = _ref.rtl;
-  var unit;
-  var position;
-  var transformSize;
-
-  if (['top', 'bottom'].includes(tabPosition)) {
-    unit = 'width';
-    position = rtl ? 'right' : 'left';
-    transformSize = Math.abs(containerSize.left);
-  } else {
-    unit = 'height';
-    position = 'top';
-    transformSize = -containerSize.top;
-  }
-
-  var basicSize = containerSize[unit];
-  var tabContentSize = tabContentNodeSize[unit];
-  var addSize = addNodeSize[unit];
-  var mergedBasicSize = basicSize;
-
-  if (tabContentSize + addSize > basicSize) {
-    mergedBasicSize = basicSize - addSize;
-  }
-
-  return React.useMemo(function () {
-    if (!tabs.length) {
-      return [0, 0];
-    }
-
-    var len = tabs.length;
-    var endIndex = len;
-
-    for (var i = 0; i < len; i += 1) {
-      var offset = tabOffsets.get(tabs[i].key) || DEFAULT_SIZE$1;
-
-      if (offset[position] + offset[unit] > transformSize + mergedBasicSize) {
-        endIndex = i - 1;
-        break;
-      }
-    }
-
-    var startIndex = 0;
-
-    for (var _i = len - 1; _i >= 0; _i -= 1) {
-      var _offset = tabOffsets.get(tabs[_i].key) || DEFAULT_SIZE$1;
-
-      if (_offset[position] < transformSize) {
-        startIndex = _i + 1;
-        break;
-      }
-    }
-
-    return [startIndex, endIndex];
-  }, [tabOffsets, transformSize, mergedBasicSize, tabPosition, tabs.map(function (tab) {
-    return tab.key;
-  }).join('_'), rtl]);
 }
 
 // MIT License from https://github.com/kaimallea/isMobile
@@ -13736,7 +13069,7 @@ var DOMWrap = /*#__PURE__*/function (_React$Component) {
             }
           }
 
-          var ret = [].concat(_toConsumableArray(acc), [overflowed, item]);
+          var ret = [].concat(_toConsumableArray$1(acc), [overflowed, item]);
 
           if (index === children.length - 1) {
             // need a placeholder for calculating overflowed indicator width
@@ -13746,7 +13079,7 @@ var DOMWrap = /*#__PURE__*/function (_React$Component) {
           return ret;
         }
 
-        return [].concat(_toConsumableArray(acc), [item]);
+        return [].concat(_toConsumableArray$1(acc), [item]);
       }, []);
     }
   }, {
@@ -14201,6 +13534,7 @@ var Menu = /*#__PURE__*/function (_React$Component) {
     _classCallCheck$1(this, Menu);
 
     _this = _super.call(this, props);
+    _this.inlineOpenKeys = [];
 
     _this.onSelect = function (selectInfo) {
       var _assertThisInitialize = _assertThisInitialized$1(_this),
@@ -14388,10 +13722,7 @@ var Menu = /*#__PURE__*/function (_React$Component) {
       }
     });
     _this.state = {
-      switchingModeFromInline: false,
-      prevProps: props,
-      inlineOpenKeys: [],
-      store: _this.store
+      switchingModeFromInline: false
     };
     return _this;
   }
@@ -14405,6 +13736,8 @@ var Menu = /*#__PURE__*/function (_React$Component) {
   }, {
     key: "componentDidUpdate",
     value: function componentDidUpdate(prevProps) {
+      this.updateOpentKeysWhenSwitchMode(prevProps);
+      this.updateMiniStore();
       var _this$props = this.props,
           siderCollapsed = _this$props.siderCollapsed,
           inlineCollapsed = _this$props.inlineCollapsed,
@@ -14414,8 +13747,43 @@ var Menu = /*#__PURE__*/function (_React$Component) {
         onOpenChange([]);
       }
 
-      this.updateMiniStore();
       this.updateMenuDisplay();
+    }
+  }, {
+    key: "updateOpentKeysWhenSwitchMode",
+    value: function updateOpentKeysWhenSwitchMode(prevProps) {
+      var nextProps = this.props,
+          store = this.store,
+          inlineOpenKeys = this.inlineOpenKeys;
+      var prevState = store.getState();
+      var newState = {};
+
+      if (prevProps.mode === 'inline' && nextProps.mode !== 'inline') {
+        this.setState({
+          switchingModeFromInline: true
+        });
+      }
+
+      if (!('openKeys' in nextProps)) {
+        // [Legacy] Old code will return after `openKeys` changed.
+        // Not sure the reason, we should keep this logic still.
+        if (nextProps.inlineCollapsed && !prevProps.inlineCollapsed || nextProps.siderCollapsed && !prevProps.siderCollapsed) {
+          this.setState({
+            switchingModeFromInline: true
+          });
+          this.inlineOpenKeys = prevState.openKeys.concat();
+          newState.openKeys = [];
+        }
+
+        if (!nextProps.inlineCollapsed && prevProps.inlineCollapsed || !nextProps.siderCollapsed && prevProps.siderCollapsed) {
+          newState.openKeys = inlineOpenKeys;
+          this.inlineOpenKeys = [];
+        }
+      }
+
+      if (Object.keys(newState).length) {
+        store.setState(newState);
+      }
     }
   }, {
     key: "updateMenuDisplay",
@@ -14520,44 +13888,6 @@ var Menu = /*#__PURE__*/function (_React$Component) {
       }, React.createElement(connected$1, Object.assign({}, props, {
         ref: this.setInnerMenu
       }), this.props.children));
-    }
-  }], [{
-    key: "getDerivedStateFromProps",
-    value: function getDerivedStateFromProps(nextProps, prevState) {
-      var prevProps = prevState.prevProps,
-          store = prevState.store;
-      var prevStoreState = store.getState();
-      var newStoreState = {};
-      var newState = {
-        prevProps: nextProps
-      };
-
-      if (prevProps.mode === 'inline' && nextProps.mode !== 'inline') {
-        newState.switchingModeFromInline = true;
-      }
-
-      if ('openKeys' in nextProps) {
-        newStoreState.openKeys = nextProps.openKeys;
-      } else {
-        // [Legacy] Old code will return after `openKeys` changed.
-        // Not sure the reason, we should keep this logic still.
-        if (nextProps.inlineCollapsed && !prevProps.inlineCollapsed || nextProps.siderCollapsed && !prevProps.siderCollapsed) {
-          newState.switchingModeFromInline = true;
-          newState.inlineOpenKeys = prevStoreState.openKeys;
-          newStoreState.openKeys = [];
-        }
-
-        if (!nextProps.inlineCollapsed && prevProps.inlineCollapsed || !nextProps.siderCollapsed && prevProps.siderCollapsed) {
-          newStoreState.openKeys = prevState.inlineOpenKeys;
-          newState.inlineOpenKeys = [];
-        }
-      }
-
-      if (Object.keys(newStoreState).length) {
-        store.setState(newStoreState);
-      }
-
-      return newState;
     }
   }]);
 
@@ -14805,6 +14135,503 @@ var connected$2 = connect(function (_ref, _ref2) {
   };
 })(MenuItem);
 
+var __rest$3 = undefined && undefined.__rest || function (s, e) {
+  var t = {};
+
+  for (var p in s) {
+    if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
+  }
+
+  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
+  }
+  return t;
+};
+
+var Grid = function Grid(props) {
+  return /*#__PURE__*/React.createElement(ConfigConsumer, null, function (_ref) {
+    var getPrefixCls = _ref.getPrefixCls;
+
+    var customizePrefixCls = props.prefixCls,
+        className = props.className,
+        _props$hoverable = props.hoverable,
+        hoverable = _props$hoverable === void 0 ? true : _props$hoverable,
+        others = __rest$3(props, ["prefixCls", "className", "hoverable"]);
+
+    var prefixCls = getPrefixCls('card', customizePrefixCls);
+    var classString = classnames("".concat(prefixCls, "-grid"), className, defineProperty({}, "".concat(prefixCls, "-grid-hoverable"), hoverable));
+    return /*#__PURE__*/React.createElement("div", _extends_1({}, others, {
+      className: classString
+    }));
+  });
+};
+
+var __rest$4 = undefined && undefined.__rest || function (s, e) {
+  var t = {};
+
+  for (var p in s) {
+    if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
+  }
+
+  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
+  }
+  return t;
+};
+
+var Meta = function Meta(props) {
+  return /*#__PURE__*/React.createElement(ConfigConsumer, null, function (_ref) {
+    var getPrefixCls = _ref.getPrefixCls;
+
+    var customizePrefixCls = props.prefixCls,
+        className = props.className,
+        avatar = props.avatar,
+        title = props.title,
+        description = props.description,
+        others = __rest$4(props, ["prefixCls", "className", "avatar", "title", "description"]);
+
+    var prefixCls = getPrefixCls('card', customizePrefixCls);
+    var classString = classnames("".concat(prefixCls, "-meta"), className);
+    var avatarDom = avatar ? /*#__PURE__*/React.createElement("div", {
+      className: "".concat(prefixCls, "-meta-avatar")
+    }, avatar) : null;
+    var titleDom = title ? /*#__PURE__*/React.createElement("div", {
+      className: "".concat(prefixCls, "-meta-title")
+    }, title) : null;
+    var descriptionDom = description ? /*#__PURE__*/React.createElement("div", {
+      className: "".concat(prefixCls, "-meta-description")
+    }, description) : null;
+    var MetaDetail = titleDom || descriptionDom ? /*#__PURE__*/React.createElement("div", {
+      className: "".concat(prefixCls, "-meta-detail")
+    }, titleDom, descriptionDom) : null;
+    return /*#__PURE__*/React.createElement("div", _extends_1({}, others, {
+      className: classString
+    }), avatarDom, MetaDetail);
+  });
+};
+
+var isMobile$1 = (function () {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+
+  var agent = navigator.userAgent || navigator.vendor || window.opera;
+
+  if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(agent) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw-(n|u)|c55\/|capi|ccwa|cdm-|cell|chtm|cldc|cmd-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc-s|devi|dica|dmob|do(c|p)o|ds(12|-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(-|_)|g1 u|g560|gene|gf-5|g-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd-(m|p|t)|hei-|hi(pt|ta)|hp( i|ip)|hs-c|ht(c(-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i-(20|go|ma)|i230|iac( |-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|-[a-w])|libw|lynx|m1-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|-([1-8]|c))|phil|pire|pl(ay|uc)|pn-2|po(ck|rt|se)|prox|psio|pt-g|qa-a|qc(07|12|21|32|60|-[2-7]|i-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h-|oo|p-)|sdk\/|se(c(-|0|1)|47|mc|nd|ri)|sgh-|shar|sie(-|m)|sk-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h-|v-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl-|tdg-|tel(i|m)|tim-|t-mo|to(pl|sh)|ts(70|m-|m3|m5)|tx-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas-|your|zeto|zte-/i.test(agent.substr(0, 4))) {
+    return true;
+  }
+
+  return false;
+});
+
+var INTERNAL_PREFIX_KEY = 'rc-observer-key'; // Still need to be compatible with React 15, we use class component here
+
+var ReactResizeObserver = /*#__PURE__*/function (_React$Component) {
+  _inherits$1(ReactResizeObserver, _React$Component);
+
+  var _super = _createSuper$1(ReactResizeObserver);
+
+  function ReactResizeObserver() {
+    var _this;
+
+    _classCallCheck$1(this, ReactResizeObserver);
+
+    _this = _super.apply(this, arguments);
+    _this.resizeObserver = null;
+    _this.childNode = null;
+    _this.currentElement = null;
+    _this.state = {
+      width: 0,
+      height: 0,
+      offsetHeight: 0,
+      offsetWidth: 0
+    };
+
+    _this.onResize = function (entries) {
+      var onResize = _this.props.onResize;
+      var target = entries[0].target;
+
+      var _target$getBoundingCl = target.getBoundingClientRect(),
+          width = _target$getBoundingCl.width,
+          height = _target$getBoundingCl.height;
+
+      var offsetWidth = target.offsetWidth,
+          offsetHeight = target.offsetHeight;
+      /**
+       * Resize observer trigger when content size changed.
+       * In most case we just care about element size,
+       * let's use `boundary` instead of `contentRect` here to avoid shaking.
+       */
+
+      var fixedWidth = Math.floor(width);
+      var fixedHeight = Math.floor(height);
+
+      if (_this.state.width !== fixedWidth || _this.state.height !== fixedHeight || _this.state.offsetWidth !== offsetWidth || _this.state.offsetHeight !== offsetHeight) {
+        var size = {
+          width: fixedWidth,
+          height: fixedHeight,
+          offsetWidth: offsetWidth,
+          offsetHeight: offsetHeight
+        };
+
+        _this.setState(size);
+
+        if (onResize) {
+          // defer the callback but not defer to next frame
+          Promise.resolve().then(function () {
+            onResize(_objectSpread2(_objectSpread2({}, size), {}, {
+              offsetWidth: offsetWidth,
+              offsetHeight: offsetHeight
+            }), target);
+          });
+        }
+      }
+    };
+
+    _this.setChildNode = function (node) {
+      _this.childNode = node;
+    };
+
+    return _this;
+  }
+
+  _createClass$1(ReactResizeObserver, [{
+    key: "componentDidMount",
+    value: function componentDidMount() {
+      this.onComponentUpdated();
+    }
+  }, {
+    key: "componentDidUpdate",
+    value: function componentDidUpdate() {
+      this.onComponentUpdated();
+    }
+  }, {
+    key: "componentWillUnmount",
+    value: function componentWillUnmount() {
+      this.destroyObserver();
+    }
+  }, {
+    key: "onComponentUpdated",
+    value: function onComponentUpdated() {
+      var disabled = this.props.disabled; // Unregister if disabled
+
+      if (disabled) {
+        this.destroyObserver();
+        return;
+      } // Unregister if element changed
+
+
+      var element = findDOMNode(this.childNode || this);
+      var elementChanged = element !== this.currentElement;
+
+      if (elementChanged) {
+        this.destroyObserver();
+        this.currentElement = element;
+      }
+
+      if (!this.resizeObserver && element) {
+        this.resizeObserver = new index(this.onResize);
+        this.resizeObserver.observe(element);
+      }
+    }
+  }, {
+    key: "destroyObserver",
+    value: function destroyObserver() {
+      if (this.resizeObserver) {
+        this.resizeObserver.disconnect();
+        this.resizeObserver = null;
+      }
+    }
+  }, {
+    key: "render",
+    value: function render() {
+      var children = this.props.children;
+      var childNodes = toArray(children);
+
+      if (childNodes.length > 1) {
+        warningOnce(false, 'Find more than one child node with `children` in ResizeObserver. Will only observe first one.');
+      } else if (childNodes.length === 0) {
+        warningOnce(false, '`children` of ResizeObserver is empty. Nothing is in observe.');
+        return null;
+      }
+
+      var childNode = childNodes[0];
+
+      if ( /*#__PURE__*/React.isValidElement(childNode) && supportRef(childNode)) {
+        var ref = childNode.ref;
+        childNodes[0] = /*#__PURE__*/React.cloneElement(childNode, {
+          ref: composeRef(ref, this.setChildNode)
+        });
+      }
+
+      return childNodes.length === 1 ? childNodes[0] : childNodes.map(function (node, index) {
+        if (! /*#__PURE__*/React.isValidElement(node) || 'key' in node && node.key !== null) {
+          return node;
+        }
+
+        return /*#__PURE__*/React.cloneElement(node, {
+          key: "".concat(INTERNAL_PREFIX_KEY, "-").concat(index)
+        });
+      });
+    }
+  }]);
+
+  return ReactResizeObserver;
+}(React.Component);
+
+ReactResizeObserver.displayName = 'ResizeObserver';
+
+function useRaf(callback) {
+  var rafRef = React.useRef();
+  var removedRef = React.useRef(false);
+
+  function trigger() {
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    if (!removedRef.current) {
+      wrapperRaf.cancel(rafRef.current);
+      rafRef.current = wrapperRaf(function () {
+        callback.apply(void 0, args);
+      });
+    }
+  }
+
+  React.useEffect(function () {
+    return function () {
+      removedRef.current = true;
+      wrapperRaf.cancel(rafRef.current);
+    };
+  }, []);
+  return trigger;
+}
+function useRafState(defaultState) {
+  var batchRef = React.useRef([]);
+
+  var _useState = React.useState({}),
+      _useState2 = _slicedToArray(_useState, 2),
+      forceUpdate = _useState2[1];
+
+  var state = React.useRef(typeof defaultState === 'function' ? defaultState() : defaultState);
+  var flushUpdate = useRaf(function () {
+    var current = state.current;
+    batchRef.current.forEach(function (callback) {
+      current = callback(current);
+    });
+    batchRef.current = [];
+    state.current = current;
+    forceUpdate({});
+  });
+
+  function updater(callback) {
+    batchRef.current.push(callback);
+    flushUpdate();
+  }
+
+  return [state.current, updater];
+}
+
+function TabNode(_ref, ref) {
+  var _classNames;
+
+  var prefixCls = _ref.prefixCls,
+      id = _ref.id,
+      active = _ref.active,
+      rtl = _ref.rtl,
+      _ref$tab = _ref.tab,
+      key = _ref$tab.key,
+      tab = _ref$tab.tab,
+      disabled = _ref$tab.disabled,
+      closeIcon = _ref$tab.closeIcon,
+      tabBarGutter = _ref.tabBarGutter,
+      tabPosition = _ref.tabPosition,
+      closable = _ref.closable,
+      renderWrapper = _ref.renderWrapper,
+      removeAriaLabel = _ref.removeAriaLabel,
+      editable = _ref.editable,
+      onClick = _ref.onClick,
+      onRemove = _ref.onRemove,
+      onFocus = _ref.onFocus;
+  var tabPrefix = "".concat(prefixCls, "-tab");
+  React.useEffect(function () {
+    return onRemove;
+  }, []);
+  var nodeStyle = {};
+
+  if (tabPosition === 'top' || tabPosition === 'bottom') {
+    nodeStyle[rtl ? 'marginLeft' : 'marginRight'] = tabBarGutter;
+  } else {
+    nodeStyle.marginBottom = tabBarGutter;
+  }
+
+  var removable = editable && closable !== false && !disabled;
+
+  function onInternalClick(e) {
+    if (disabled) return;
+    onClick(e);
+  }
+
+  function onRemoveTab(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    editable.onEdit('remove', {
+      key: key,
+      event: event
+    });
+  }
+
+  var node = /*#__PURE__*/React.createElement("div", {
+    key: key,
+    ref: ref,
+    className: classnames(tabPrefix, (_classNames = {}, _defineProperty(_classNames, "".concat(tabPrefix, "-with-remove"), removable), _defineProperty(_classNames, "".concat(tabPrefix, "-active"), active), _defineProperty(_classNames, "".concat(tabPrefix, "-disabled"), disabled), _classNames)),
+    style: nodeStyle,
+    onClick: onInternalClick
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "tab",
+    "aria-selected": active,
+    id: id && "".concat(id, "-tab-").concat(key),
+    className: "".concat(tabPrefix, "-btn"),
+    "aria-controls": id && "".concat(id, "-panel-").concat(key),
+    "aria-disabled": disabled,
+    tabIndex: disabled ? null : 0,
+    onClick: function onClick(e) {
+      e.stopPropagation();
+      onInternalClick(e);
+    },
+    onKeyDown: function onKeyDown(e) {
+      if ([KeyCode.SPACE, KeyCode.ENTER].includes(e.which)) {
+        e.preventDefault();
+        onInternalClick(e);
+      }
+    },
+    onFocus: onFocus
+  }, tab), removable && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": removeAriaLabel || 'remove',
+    tabIndex: 0,
+    className: "".concat(tabPrefix, "-remove"),
+    onClick: function onClick(e) {
+      e.stopPropagation();
+      onRemoveTab(e);
+    }
+  }, closeIcon || editable.removeIcon || '×'));
+
+  if (renderWrapper) {
+    node = renderWrapper(node);
+  }
+
+  return node;
+}
+
+var TabNode$1 = /*#__PURE__*/React.forwardRef(TabNode);
+
+var DEFAULT_SIZE = {
+  width: 0,
+  height: 0,
+  left: 0,
+  top: 0
+};
+function useOffsets(tabs, tabSizes, holderScrollWidth) {
+  return React.useMemo(function () {
+    var _tabs$;
+
+    var map = new Map();
+    var lastOffset = tabSizes.get((_tabs$ = tabs[0]) === null || _tabs$ === void 0 ? void 0 : _tabs$.key) || DEFAULT_SIZE;
+    var rightOffset = lastOffset.left + lastOffset.width;
+
+    for (var i = 0; i < tabs.length; i += 1) {
+      var key = tabs[i].key;
+      var data = tabSizes.get(key); // Reuse last one when not exist yet
+
+      if (!data) {
+        var _tabs;
+
+        data = tabSizes.get((_tabs = tabs[i - 1]) === null || _tabs === void 0 ? void 0 : _tabs.key) || DEFAULT_SIZE;
+      }
+
+      var entity = map.get(key) || _objectSpread2({}, data); // Right
+
+
+      entity.right = rightOffset - entity.left - entity.width; // Update entity
+
+      map.set(key, entity);
+    }
+
+    return map;
+  }, [tabs.map(function (tab) {
+    return tab.key;
+  }).join('_'), tabSizes, holderScrollWidth]);
+}
+
+var DEFAULT_SIZE$1 = {
+  width: 0,
+  height: 0,
+  left: 0,
+  top: 0,
+  right: 0
+};
+function useVisibleRange(tabOffsets, containerSize, tabContentNodeSize, addNodeSize, _ref) {
+  var tabs = _ref.tabs,
+      tabPosition = _ref.tabPosition,
+      rtl = _ref.rtl;
+  var unit;
+  var position;
+  var transformSize;
+
+  if (['top', 'bottom'].includes(tabPosition)) {
+    unit = 'width';
+    position = rtl ? 'right' : 'left';
+    transformSize = Math.abs(containerSize.left);
+  } else {
+    unit = 'height';
+    position = 'top';
+    transformSize = -containerSize.top;
+  }
+
+  var basicSize = containerSize[unit];
+  var tabContentSize = tabContentNodeSize[unit];
+  var addSize = addNodeSize[unit];
+  var mergedBasicSize = basicSize;
+
+  if (tabContentSize + addSize > basicSize) {
+    mergedBasicSize = basicSize - addSize;
+  }
+
+  return React.useMemo(function () {
+    if (!tabs.length) {
+      return [0, 0];
+    }
+
+    var len = tabs.length;
+    var endIndex = len;
+
+    for (var i = 0; i < len; i += 1) {
+      var offset = tabOffsets.get(tabs[i].key) || DEFAULT_SIZE$1;
+
+      if (offset[position] + offset[unit] > transformSize + mergedBasicSize) {
+        endIndex = i - 1;
+        break;
+      }
+    }
+
+    var startIndex = 0;
+
+    for (var _i = len - 1; _i >= 0; _i -= 1) {
+      var _offset = tabOffsets.get(tabs[_i].key) || DEFAULT_SIZE$1;
+
+      if (_offset[position] < transformSize) {
+        startIndex = _i + 1;
+        break;
+      }
+    }
+
+    return [startIndex, endIndex];
+  }, [tabOffsets, transformSize, mergedBasicSize, tabPosition, tabs.map(function (tab) {
+    return tab.key;
+  }).join('_'), rtl]);
+}
+
 function AddButton(_ref, ref) {
   var prefixCls = _ref.prefixCls,
       editable = _ref.editable,
@@ -14815,7 +14642,7 @@ function AddButton(_ref, ref) {
     return null;
   }
 
-  return React.createElement("button", {
+  return /*#__PURE__*/React.createElement("button", {
     ref: ref,
     type: "button",
     className: "".concat(prefixCls, "-nav-add"),
@@ -14829,7 +14656,7 @@ function AddButton(_ref, ref) {
   }, editable.addIcon || '+');
 }
 
-var AddButton$1 = React.forwardRef(AddButton);
+var AddButton$1 = /*#__PURE__*/React.forwardRef(AddButton);
 
 function OperationNode(_ref, ref) {
   var prefixCls = _ref.prefixCls,
@@ -14862,7 +14689,7 @@ function OperationNode(_ref, ref) {
   var dropdownPrefix = "".concat(prefixCls, "-dropdown");
   var selectedItemId = selectedKey !== null ? "".concat(popupId, "-").concat(selectedKey) : null;
   var dropdownAriaLabel = locale === null || locale === void 0 ? void 0 : locale.dropdownAriaLabel;
-  var menu = React.createElement(Menu, {
+  var menu = /*#__PURE__*/React.createElement(Menu, {
     onClick: function onClick(_ref2) {
       var key = _ref2.key,
           domEvent = _ref2.domEvent;
@@ -14876,7 +14703,7 @@ function OperationNode(_ref, ref) {
     selectedKeys: [selectedKey],
     "aria-label": dropdownAriaLabel !== undefined ? dropdownAriaLabel : 'expanded dropdown'
   }, tabs.map(function (tab) {
-    return React.createElement(connected$2, {
+    return /*#__PURE__*/React.createElement(connected$2, {
       key: tab.key,
       id: "".concat(popupId, "-").concat(tab.key),
       role: "option",
@@ -14962,7 +14789,7 @@ function OperationNode(_ref, ref) {
   }
 
   var overlayClassName = classnames(_defineProperty({}, "".concat(dropdownPrefix, "-rtl"), rtl));
-  var moreNode = mobile ? null : React.createElement(Dropdown$1, {
+  var moreNode = mobile ? null : /*#__PURE__*/React.createElement(Dropdown$1, {
     prefixCls: dropdownPrefix,
     overlay: menu,
     trigger: ['hover'],
@@ -14972,7 +14799,7 @@ function OperationNode(_ref, ref) {
     overlayClassName: overlayClassName,
     mouseEnterDelay: 0.1,
     mouseLeaveDelay: 0.1
-  }, React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "".concat(prefixCls, "-nav-more"),
     style: moreStyle,
@@ -14984,35 +14811,25 @@ function OperationNode(_ref, ref) {
     "aria-expanded": open,
     onKeyDown: onKeyDown
   }, moreIcon));
-  return React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     className: classnames("".concat(prefixCls, "-nav-operations"), className),
     style: style,
     ref: ref
-  }, moreNode, React.createElement(AddButton$1, {
+  }, moreNode, /*#__PURE__*/React.createElement(AddButton$1, {
     prefixCls: prefixCls,
     locale: locale,
     editable: editable
   }));
 }
 
-var OperationNode$1 = React.forwardRef(OperationNode);
+var OperationNode$1 = /*#__PURE__*/React.forwardRef(OperationNode);
 
-var TabContext = React.createContext(null);
+var TabContext = /*#__PURE__*/React.createContext(null);
 
 var MIN_SWIPE_DISTANCE = 0.1;
 var STOP_SWIPE_DISTANCE = 0.01;
 var REFRESH_INTERVAL = 20;
-var SPEED_OFF_MULTIPLE = Math.pow(0.995, REFRESH_INTERVAL); // ========================= Check if is a mobile =========================
-
-function isMobile$1() {
-  var agent = navigator.userAgent || navigator.vendor || window.opera;
-
-  if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(agent) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw-(n|u)|c55\/|capi|ccwa|cdm-|cell|chtm|cldc|cmd-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc-s|devi|dica|dmob|do(c|p)o|ds(12|-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(-|_)|g1 u|g560|gene|gf-5|g-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd-(m|p|t)|hei-|hi(pt|ta)|hp( i|ip)|hs-c|ht(c(-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i-(20|go|ma)|i230|iac( |-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|-[a-w])|libw|lynx|m1-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|-([1-8]|c))|phil|pire|pl(ay|uc)|pn-2|po(ck|rt|se)|prox|psio|pt-g|qa-a|qc(07|12|21|32|60|-[2-7]|i-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h-|oo|p-)|sdk\/|se(c(-|0|1)|47|mc|nd|ri)|sgh-|shar|sie(-|m)|sk-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h-|v-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl-|tdg-|tel(i|m)|tim-|t-mo|to(pl|sh)|ts(70|m-|m3|m5)|tx-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas-|your|zeto|zte-/i.test(agent.substr(0, 4))) {
-    return true;
-  }
-
-  return false;
-} // ================================= Hook =================================
+var SPEED_OFF_MULTIPLE = Math.pow(0.995, REFRESH_INTERVAL); // ================================= Hook =================================
 
 function useTouchMove(ref, onOffset) {
   var _useState = React.useState(),
@@ -15099,8 +14916,6 @@ function useTouchMove(ref, onOffset) {
   } // >>> Wheel event
 
 
-  var lastWheelTimestampRef = React.useRef(0);
-  var lastWheelPreventRef = React.useRef(false);
   var lastWheelDirectionRef = React.useRef();
 
   function onWheel(e) {
@@ -15119,21 +14934,11 @@ function useTouchMove(ref, onOffset) {
     } else {
       mixed = deltaY;
       lastWheelDirectionRef.current = 'y';
-    } // Optimize mac touch scroll
-
-
-    var now = Date.now();
-
-    if (now - lastWheelTimestampRef.current > 100) {
-      lastWheelPreventRef.current = false;
     }
 
-    if (onOffset(-mixed, -mixed) || lastWheelPreventRef.current) {
+    if (onOffset(-mixed, -mixed)) {
       e.preventDefault();
-      lastWheelPreventRef.current = true;
     }
-
-    lastWheelTimestampRef.current = now;
   } // ========================= Effect =========================
 
 
@@ -15184,7 +14989,7 @@ function useRefs() {
 
   function getRef(key) {
     if (!cacheRefs.current.has(key)) {
-      cacheRefs.current.set(key, React.createRef());
+      cacheRefs.current.set(key, /*#__PURE__*/React.createRef());
     }
 
     return cacheRefs.current.get(key);
@@ -15234,7 +15039,7 @@ var ExtraContent = function ExtraContent(_ref) {
     content = assertExtra.left || null;
   }
 
-  return content ? React.createElement("div", {
+  return content ? /*#__PURE__*/React.createElement("div", {
     className: "".concat(prefixCls, "-extra-content")
   }, content) : null;
 };
@@ -15358,14 +15163,14 @@ function TabNavList(props, ref) {
 
   function alignInRange(value) {
     if (value < transformMin) {
-      return [transformMin, false];
+      return transformMin;
     }
 
     if (value > transformMax) {
-      return [transformMax, false];
+      return transformMax;
     }
 
-    return [value, true];
+    return value;
   } // ========================= Mobile ========================
 
 
@@ -15385,16 +15190,9 @@ function TabNavList(props, ref) {
   }
 
   useTouchMove(tabsWrapperRef, function (offsetX, offsetY) {
-    var preventDefault = false;
-
     function doMove(setState, offset) {
       setState(function (value) {
-        var _alignInRange = alignInRange(value + offset),
-            _alignInRange2 = _slicedToArray(_alignInRange, 2),
-            newValue = _alignInRange2[0],
-            needPrevent = _alignInRange2[1];
-
-        preventDefault = needPrevent;
+        var newValue = alignInRange(value + offset);
         return newValue;
       });
     }
@@ -15402,13 +15200,13 @@ function TabNavList(props, ref) {
     if (tabPositionTopOrBottom) {
       // Skip scroll if place is enough
       if (wrapperWidth >= wrapperScrollWidth) {
-        return preventDefault;
+        return false;
       }
 
       doMove(setTransformLeft, offsetX);
     } else {
       if (wrapperHeight >= wrapperScrollHeight) {
-        return preventDefault;
+        return false;
       }
 
       doMove(setTransformTop, offsetY);
@@ -15416,7 +15214,7 @@ function TabNavList(props, ref) {
 
     clearTouchMoving();
     doLockAnimation();
-    return preventDefault;
+    return true;
   });
   React.useEffect(function () {
     clearTouchMoving();
@@ -15432,8 +15230,13 @@ function TabNavList(props, ref) {
 
   function scrollToTab() {
     var key = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : activeKey;
-    var tabOffset = tabOffsets.get(key);
-    if (!tabOffset) return;
+    var tabOffset = tabOffsets.get(key) || {
+      width: 0,
+      height: 0,
+      left: 0,
+      right: 0,
+      top: 0
+    };
 
     if (tabPositionTopOrBottom) {
       // ============ Align with top & bottom ============
@@ -15453,7 +15256,7 @@ function TabNavList(props, ref) {
         }
 
       setTransformTop(0);
-      setTransformLeft(alignInRange(newTransform)[0]);
+      setTransformLeft(alignInRange(newTransform));
     } else {
       // ============ Align with left & right ============
       var _newTransform = transformTop;
@@ -15465,7 +15268,7 @@ function TabNavList(props, ref) {
       }
 
       setTransformLeft(0);
-      setTransformTop(alignInRange(_newTransform)[0]);
+      setTransformTop(alignInRange(_newTransform));
     }
   } // ========================== Tab ==========================
   // Render tab node & collect tab offset
@@ -15491,7 +15294,7 @@ function TabNavList(props, ref) {
 
   var tabNodes = tabs.map(function (tab) {
     var key = tab.key;
-    return React.createElement(TabNode$1, {
+    return /*#__PURE__*/React.createElement(TabNode$1, {
       id: id,
       prefixCls: prefixCls,
       key: key,
@@ -15566,7 +15369,7 @@ function TabNavList(props, ref) {
 
   var startHiddenTabs = tabs.slice(0, visibleStart);
   var endHiddenTabs = tabs.slice(visibleEnd + 1);
-  var hiddenTabs = [].concat(_toConsumableArray(startHiddenTabs), _toConsumableArray(endHiddenTabs)); // =================== Link & Operations ===================
+  var hiddenTabs = [].concat(_toConsumableArray$1(startHiddenTabs), _toConsumableArray$1(endHiddenTabs)); // =================== Link & Operations ===================
 
   var _useState19 = React.useState(),
       _useState20 = _slicedToArray(_useState19, 2),
@@ -15578,7 +15381,7 @@ function TabNavList(props, ref) {
   var inkBarRafRef = React.useRef();
 
   function cleanInkBarRaf() {
-    raf_1.cancel(inkBarRafRef.current);
+    wrapperRaf.cancel(inkBarRafRef.current);
   }
 
   React.useEffect(function () {
@@ -15600,7 +15403,7 @@ function TabNavList(props, ref) {
     }
 
     cleanInkBarRaf();
-    inkBarRafRef.current = raf_1(function () {
+    inkBarRafRef.current = wrapperRaf(function () {
       setInkStyle(newInkStyle);
     });
     return cleanInkBarRaf;
@@ -15635,10 +15438,8 @@ function TabNavList(props, ref) {
     pingTop = transformTop < 0;
     pingBottom = -transformTop + wrapperHeight < wrapperScrollHeight;
   }
-  /* eslint-disable jsx-a11y/interactive-supports-focus */
 
-
-  return React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     ref: ref,
     role: "tablist",
     className: classnames("".concat(prefixCls, "-nav"), className),
@@ -15647,25 +15448,25 @@ function TabNavList(props, ref) {
       // No need animation when use keyboard
       doLockAnimation();
     }
-  }, React.createElement(ExtraContent, {
+  }, /*#__PURE__*/React.createElement(ExtraContent, {
     position: "left",
     extra: extra,
     prefixCls: prefixCls
-  }), React.createElement(ReactResizeObserver, {
+  }), /*#__PURE__*/React.createElement(ReactResizeObserver, {
     onResize: onListHolderResize
-  }, React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: classnames(wrapPrefix, (_classNames = {}, _defineProperty(_classNames, "".concat(wrapPrefix, "-ping-left"), pingLeft), _defineProperty(_classNames, "".concat(wrapPrefix, "-ping-right"), pingRight), _defineProperty(_classNames, "".concat(wrapPrefix, "-ping-top"), pingTop), _defineProperty(_classNames, "".concat(wrapPrefix, "-ping-bottom"), pingBottom), _classNames)),
     ref: tabsWrapperRef
-  }, React.createElement(ReactResizeObserver, {
+  }, /*#__PURE__*/React.createElement(ReactResizeObserver, {
     onResize: onListHolderResize
-  }, React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     ref: tabListRef,
     className: "".concat(prefixCls, "-nav-list"),
     style: {
       transform: "translate(".concat(transformLeft, "px, ").concat(transformTop, "px)"),
       transition: lockAnimation ? 'none' : undefined
     }
-  }, tabNodes, React.createElement(AddButton$1, {
+  }, tabNodes, /*#__PURE__*/React.createElement(AddButton$1, {
     ref: innerAddButtonRef,
     prefixCls: prefixCls,
     locale: locale,
@@ -15673,15 +15474,15 @@ function TabNavList(props, ref) {
     style: {
       visibility: hasDropdown ? 'hidden' : null
     }
-  }), React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
     className: classnames("".concat(prefixCls, "-ink-bar"), _defineProperty({}, "".concat(prefixCls, "-ink-bar-animated"), animated.inkBar)),
     style: inkStyle
-  }))))), React.createElement(OperationNode$1, Object.assign({}, props, {
+  }))))), /*#__PURE__*/React.createElement(OperationNode$1, _extends({}, props, {
     ref: operationsRef,
     prefixCls: prefixCls,
     tabs: hiddenTabs,
     className: !hasDropdown && operationsHiddenClassName
-  })), React.createElement(ExtraContent, {
+  })), /*#__PURE__*/React.createElement(ExtraContent, {
     position: "right",
     extra: extra,
     prefixCls: prefixCls
@@ -15689,7 +15490,7 @@ function TabNavList(props, ref) {
   /* eslint-enable */
 }
 
-var TabNavList$1 = React.forwardRef(TabNavList);
+var TabNavList$1 = /*#__PURE__*/React.forwardRef(TabNavList);
 
 function TabPanelList(_ref) {
   var id = _ref.id,
@@ -15707,13 +15508,13 @@ function TabPanelList(_ref) {
   var activeIndex = tabs.findIndex(function (tab) {
     return tab.key === activeKey;
   });
-  return React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     className: classnames("".concat(prefixCls, "-content-holder"))
-  }, React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: classnames("".concat(prefixCls, "-content"), "".concat(prefixCls, "-content-").concat(tabPosition), _defineProperty({}, "".concat(prefixCls, "-content-animated"), tabPaneAnimated)),
     style: activeIndex && tabPaneAnimated ? _defineProperty({}, rtl ? 'marginRight' : 'marginLeft', "-".concat(activeIndex, "00%")) : null
   }, tabs.map(function (tab) {
-    return React.cloneElement(tab.node, {
+    return /*#__PURE__*/React.cloneElement(tab.node, {
       key: tab.key,
       prefixCls: prefixCls,
       tabKey: tab.key,
@@ -15761,7 +15562,7 @@ function TabPane(_ref) {
     }
   }
 
-  return React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     id: id && "".concat(id, "-panel-").concat(tabKey),
     role: "tabpanel",
     tabIndex: active ? 0 : -1,
@@ -15787,7 +15588,7 @@ var uuid = 0;
 
 function parseTabList(children) {
   return toArray(children).map(function (node) {
-    if (React.isValidElement(node)) {
+    if ( /*#__PURE__*/React.isValidElement(node)) {
       var key = node.key !== undefined ? String(node.key) : undefined;
       return _objectSpread2(_objectSpread2({
         key: key
@@ -15959,26 +15760,26 @@ function Tabs(_ref, ref) {
   if (renderTabBar) {
     tabNavBar = renderTabBar(tabNavBarProps, TabNavList$1);
   } else {
-    tabNavBar = React.createElement(TabNavList$1, Object.assign({}, tabNavBarProps));
+    tabNavBar = /*#__PURE__*/React.createElement(TabNavList$1, tabNavBarProps);
   }
 
-  return React.createElement(TabContext.Provider, {
+  return /*#__PURE__*/React.createElement(TabContext.Provider, {
     value: {
       tabs: tabs,
       prefixCls: prefixCls
     }
-  }, React.createElement("div", Object.assign({
+  }, /*#__PURE__*/React.createElement("div", _extends({
     ref: ref,
     id: id,
     className: classnames(prefixCls, "".concat(prefixCls, "-").concat(mergedTabPosition), (_classNames = {}, _defineProperty(_classNames, "".concat(prefixCls, "-mobile"), mobile), _defineProperty(_classNames, "".concat(prefixCls, "-editable"), editable), _defineProperty(_classNames, "".concat(prefixCls, "-rtl"), rtl), _classNames), className)
-  }, restProps), tabNavBar, React.createElement(TabPanelList, Object.assign({
+  }, restProps), tabNavBar, /*#__PURE__*/React.createElement(TabPanelList, _extends({
     destroyInactiveTabPane: destroyInactiveTabPane
   }, sharedProps, {
     animated: mergedAnimated
   }))));
 }
 
-var ForwardTabs = React.forwardRef(Tabs);
+var ForwardTabs = /*#__PURE__*/React.forwardRef(Tabs);
 ForwardTabs.TabPane = TabPane;
 
 var PlusOutlined_1 = createCommonjsModule(function (module, exports) {
@@ -16008,7 +15809,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var PlusOutlined = function PlusOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _PlusOutlined.default
   }));
@@ -16016,7 +15817,7 @@ var PlusOutlined = function PlusOutlined(props, ref) {
 
 PlusOutlined.displayName = 'PlusOutlined';
 
-var _default = React.forwardRef(PlusOutlined);
+var _default = /*#__PURE__*/React.forwardRef(PlusOutlined);
 
 exports.default = _default;
 });
@@ -16517,6 +16318,102 @@ var Divider = function Divider(props) {
   });
 };
 
+function _classCallCheck$2(instance, Constructor) {
+  if (!(instance instanceof Constructor)) {
+    throw new TypeError("Cannot call a class as a function");
+  }
+}
+
+function _defineProperties$2(target, props) {
+  for (var i = 0; i < props.length; i++) {
+    var descriptor = props[i];
+    descriptor.enumerable = descriptor.enumerable || false;
+    descriptor.configurable = true;
+    if ("value" in descriptor) descriptor.writable = true;
+    Object.defineProperty(target, descriptor.key, descriptor);
+  }
+}
+
+function _createClass$2(Constructor, protoProps, staticProps) {
+  if (protoProps) _defineProperties$2(Constructor.prototype, protoProps);
+  if (staticProps) _defineProperties$2(Constructor, staticProps);
+  return Constructor;
+}
+
+function _setPrototypeOf$1(o, p) {
+  _setPrototypeOf$1 = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
+    o.__proto__ = p;
+    return o;
+  };
+
+  return _setPrototypeOf$1(o, p);
+}
+
+function _inherits$2(subClass, superClass) {
+  if (typeof superClass !== "function" && superClass !== null) {
+    throw new TypeError("Super expression must either be null or a function");
+  }
+
+  subClass.prototype = Object.create(superClass && superClass.prototype, {
+    constructor: {
+      value: subClass,
+      writable: true,
+      configurable: true
+    }
+  });
+  if (superClass) _setPrototypeOf$1(subClass, superClass);
+}
+
+var _typeof_1$1 = createCommonjsModule(function (module) {
+function _typeof(obj) {
+  "@babel/helpers - typeof";
+
+  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
+    module.exports = _typeof = function _typeof(obj) {
+      return typeof obj;
+    };
+
+    module.exports["default"] = module.exports, module.exports.__esModule = true;
+  } else {
+    module.exports = _typeof = function _typeof(obj) {
+      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    };
+
+    module.exports["default"] = module.exports, module.exports.__esModule = true;
+  }
+
+  return _typeof(obj);
+}
+
+module.exports = _typeof;
+module.exports["default"] = module.exports, module.exports.__esModule = true;
+});
+
+var _typeof$3 = /*@__PURE__*/getDefaultExportFromCjs(_typeof_1$1);
+
+function _assertThisInitialized$2(self) {
+  if (self === void 0) {
+    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
+  }
+
+  return self;
+}
+
+function _possibleConstructorReturn$2(self, call) {
+  if (call && (_typeof$3(call) === "object" || typeof call === "function")) {
+    return call;
+  }
+
+  return _assertThisInitialized$2(self);
+}
+
+function _getPrototypeOf$1(o) {
+  _getPrototypeOf$1 = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
+    return o.__proto__ || Object.getPrototypeOf(o);
+  };
+  return _getPrototypeOf$1(o);
+}
+
 var cached;
 function getScrollBarSize(fresh) {
   if (typeof document === 'undefined') {
@@ -16562,6 +16459,11 @@ function getScrollBarSize(fresh) {
  */
 function setStyle$1(style) {
   var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  if (!style) {
+    return {};
+  }
+
   var _options$element = options.element,
       element = _options$element === void 0 ? document.body : _options$element;
   var oldStyle = {};
@@ -16614,27 +16516,147 @@ var switchScrollingEffect = (function (close) {
   }
 });
 
-function _classCallCheck$2(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+var locks = [];
+var scrollingEffectClassName = 'ant-scrolling-effect';
+var scrollingEffectClassNameReg = new RegExp("".concat(scrollingEffectClassName), 'g');
+var uuid$1 = 0; // https://github.com/ant-design/ant-design/issues/19340
+// https://github.com/ant-design/ant-design/issues/19332
 
-function _defineProperties$2(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+var cacheStyle$1 = new Map();
 
-function _createClass$2(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties$2(Constructor.prototype, protoProps); if (staticProps) _defineProperties$2(Constructor, staticProps); return Constructor; }
+var ScrollLocker = function ScrollLocker(options) {
+  var _this = this;
 
-function _inherits$2(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf$1(subClass, superClass); }
+  _classCallCheck$2(this, ScrollLocker);
 
-function _setPrototypeOf$1(o, p) { _setPrototypeOf$1 = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf$1(o, p); }
+  this.getContainer = function () {
+    var _this$options;
+
+    return (_this$options = _this.options) === null || _this$options === void 0 ? void 0 : _this$options.container;
+  }; // if options change...
+
+
+  this.reLock = function (options) {
+    var findLock = locks.find(function (_ref) {
+      var target = _ref.target;
+      return target === _this.lockTarget;
+    });
+
+    if (findLock) {
+      _this.unLock();
+    }
+
+    _this.options = options;
+
+    if (findLock) {
+      findLock.options = options;
+
+      _this.lock();
+    }
+  };
+
+  this.lock = function () {
+    var _this$options3;
+
+    // If lockTarget exist return
+    if (locks.some(function (_ref2) {
+      var target = _ref2.target;
+      return target === _this.lockTarget;
+    })) {
+      return;
+    } // If same container effect, return
+
+
+    if (locks.some(function (_ref3) {
+      var _this$options2;
+
+      var options = _ref3.options;
+      return (options === null || options === void 0 ? void 0 : options.container) === ((_this$options2 = _this.options) === null || _this$options2 === void 0 ? void 0 : _this$options2.container);
+    })) {
+      locks = [].concat(_toConsumableArray(locks), [{
+        target: _this.lockTarget,
+        options: _this.options
+      }]);
+      return;
+    }
+
+    var scrollBarSize = 0;
+    var container = ((_this$options3 = _this.options) === null || _this$options3 === void 0 ? void 0 : _this$options3.container) || document.body;
+
+    if (container === document.body && window.innerWidth - document.documentElement.clientWidth > 0 || container.scrollHeight > container.clientHeight) {
+      scrollBarSize = getScrollBarSize();
+    }
+
+    var containerClassName = container.className;
+
+    if (locks.filter(function (_ref4) {
+      var _this$options4;
+
+      var options = _ref4.options;
+      return (options === null || options === void 0 ? void 0 : options.container) === ((_this$options4 = _this.options) === null || _this$options4 === void 0 ? void 0 : _this$options4.container);
+    }).length === 0) {
+      cacheStyle$1.set(container, setStyle$1({
+        width: "calc(100% - ".concat(scrollBarSize, "px)"),
+        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'hidden'
+      }, {
+        element: container
+      }));
+    } // https://github.com/ant-design/ant-design/issues/19729
+
+
+    if (!scrollingEffectClassNameReg.test(containerClassName)) {
+      var addClassName = "".concat(containerClassName, " ").concat(scrollingEffectClassName);
+      container.className = addClassName.trim();
+    }
+
+    locks = [].concat(_toConsumableArray(locks), [{
+      target: _this.lockTarget,
+      options: _this.options
+    }]);
+  };
+
+  this.unLock = function () {
+    var _this$options5;
+
+    var findLock = locks.find(function (_ref5) {
+      var target = _ref5.target;
+      return target === _this.lockTarget;
+    });
+    locks = locks.filter(function (_ref6) {
+      var target = _ref6.target;
+      return target !== _this.lockTarget;
+    });
+
+    if (!findLock || locks.some(function (_ref7) {
+      var _findLock$options;
+
+      var options = _ref7.options;
+      return (options === null || options === void 0 ? void 0 : options.container) === ((_findLock$options = findLock.options) === null || _findLock$options === void 0 ? void 0 : _findLock$options.container);
+    })) {
+      return;
+    } // Remove Effect
+
+
+    var container = ((_this$options5 = _this.options) === null || _this$options5 === void 0 ? void 0 : _this$options5.container) || document.body;
+    var containerClassName = container.className;
+    if (!scrollingEffectClassNameReg.test(containerClassName)) return;
+    setStyle$1(cacheStyle$1.get(container), {
+      element: container
+    });
+    cacheStyle$1.delete(container);
+    container.className = container.className.replace(scrollingEffectClassNameReg, '').trim();
+  }; // eslint-disable-next-line no-plusplus
+
+
+  this.lockTarget = uuid$1++;
+  this.options = options;
+};
 
 function _createSuper$2(Derived) { var hasNativeReflectConstruct = _isNativeReflectConstruct$2(); return function _createSuperInternal() { var Super = _getPrototypeOf$1(Derived), result; if (hasNativeReflectConstruct) { var NewTarget = _getPrototypeOf$1(this).constructor; result = Reflect.construct(Super, arguments, NewTarget); } else { result = Super.apply(this, arguments); } return _possibleConstructorReturn$2(this, result); }; }
 
-function _possibleConstructorReturn$2(self, call) { if (call && (_typeof$3(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized$2(self); }
-
-function _assertThisInitialized$2(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
 function _isNativeReflectConstruct$2() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
-
-function _getPrototypeOf$1(o) { _getPrototypeOf$1 = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf$1(o); }
-
-function _typeof$3(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$3 = function _typeof(obj) { return typeof obj; }; } else { _typeof$3 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$3(obj); }
 var openCount = 0;
 var supportDom = canUseDom();
 // https://github.com/ant-design/ant-design/issues/19332
@@ -16655,7 +16677,7 @@ var getParent$2 = function getParent(getContainer) {
       return getContainer();
     }
 
-    if (_typeof$3(getContainer) === 'object' && getContainer instanceof window.HTMLElement) {
+    if (_typeof$1(getContainer) === 'object' && getContainer instanceof window.HTMLElement) {
       return getContainer;
     }
   }
@@ -16675,6 +16697,46 @@ var PortalWrapper = /*#__PURE__*/function (_React$Component) {
 
     _this = _super.call(this, props);
     _this.componentRef = React.createRef();
+
+    _this.updateScrollLocker = function (prevProps) {
+      var _ref = prevProps || {},
+          prevVisible = _ref.visible;
+
+      var _this$props = _this.props,
+          getContainer = _this$props.getContainer,
+          visible = _this$props.visible;
+
+      if (visible && visible !== prevVisible && supportDom && getParent$2(getContainer) !== _this.scrollLocker.getContainer()) {
+        _this.scrollLocker.reLock({
+          container: getParent$2(getContainer)
+        });
+      }
+    };
+
+    _this.updateOpenCount = function (prevProps) {
+      var _ref2 = prevProps || {},
+          prevVisible = _ref2.visible,
+          prevGetContainer = _ref2.getContainer;
+
+      var _this$props2 = _this.props,
+          visible = _this$props2.visible,
+          getContainer = _this$props2.getContainer; // Update count
+
+      if (visible !== prevVisible && supportDom && getParent$2(getContainer) === document.body) {
+        if (visible && !prevVisible) {
+          openCount += 1;
+        } else if (prevProps) {
+          openCount -= 1;
+        }
+      } // Clean up container if needed
+
+
+      var getContainerIsFunc = typeof getContainer === 'function' && typeof prevGetContainer === 'function';
+
+      if (getContainerIsFunc ? getContainer.toString() !== prevGetContainer.toString() : getContainer !== prevGetContainer) {
+        _this.removeCurrentContainer();
+      }
+    };
 
     _this.attachToParent = function () {
       var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
@@ -16750,16 +16812,9 @@ var PortalWrapper = /*#__PURE__*/function (_React$Component) {
       }
     };
 
-    var visible = props.visible,
-        getContainer = props.getContainer;
-
-    if (supportDom && getParent$2(getContainer) === document.body) {
-      openCount = visible ? openCount + 1 : openCount;
-    }
-
-    _this.state = {
-      _self: _assertThisInitialized$2(_this)
-    };
+    _this.scrollLocker = new ScrollLocker({
+      container: getParent$2(props.getContainer)
+    });
     return _this;
   }
 
@@ -16767,6 +16822,8 @@ var PortalWrapper = /*#__PURE__*/function (_React$Component) {
     key: "componentDidMount",
     value: function componentDidMount() {
       var _this2 = this;
+
+      this.updateOpenCount();
 
       if (!this.attachToParent()) {
         this.rafId = wrapperRaf(function () {
@@ -16776,16 +16833,18 @@ var PortalWrapper = /*#__PURE__*/function (_React$Component) {
     }
   }, {
     key: "componentDidUpdate",
-    value: function componentDidUpdate() {
+    value: function componentDidUpdate(prevProps) {
+      this.updateOpenCount(prevProps);
+      this.updateScrollLocker(prevProps);
       this.setWrapperClassName();
       this.attachToParent();
     }
   }, {
     key: "componentWillUnmount",
     value: function componentWillUnmount() {
-      var _this$props = this.props,
-          visible = _this$props.visible,
-          getContainer = _this$props.getContainer;
+      var _this$props3 = this.props,
+          visible = _this$props3.visible,
+          getContainer = _this$props3.getContainer;
 
       if (supportDom && getParent$2(getContainer) === document.body) {
         // 离开时不会 render， 导到离开时数值不变，改用 func 。。
@@ -16798,54 +16857,28 @@ var PortalWrapper = /*#__PURE__*/function (_React$Component) {
   }, {
     key: "render",
     value: function render() {
-      var _this$props2 = this.props,
-          children = _this$props2.children,
-          forceRender = _this$props2.forceRender,
-          visible = _this$props2.visible;
+      var _this$props4 = this.props,
+          children = _this$props4.children,
+          forceRender = _this$props4.forceRender,
+          visible = _this$props4.visible;
       var portal = null;
       var childProps = {
         getOpenCount: function getOpenCount() {
           return openCount;
         },
         getContainer: this.getContainer,
-        switchScrollingEffect: this.switchScrollingEffect
+        switchScrollingEffect: this.switchScrollingEffect,
+        scrollLocker: this.scrollLocker
       };
 
       if (forceRender || visible || this.componentRef.current) {
-        portal = React.createElement(Portal$1, {
+        portal = /*#__PURE__*/React.createElement(Portal$1, {
           getContainer: this.getContainer,
           ref: this.componentRef
         }, children(childProps));
       }
 
       return portal;
-    }
-  }], [{
-    key: "getDerivedStateFromProps",
-    value: function getDerivedStateFromProps(props, _ref) {
-      var prevProps = _ref.prevProps,
-          _self = _ref._self;
-      var visible = props.visible,
-          getContainer = props.getContainer;
-
-      if (prevProps) {
-        var prevVisible = prevProps.visible,
-            prevGetContainer = prevProps.getContainer;
-
-        if (visible !== prevVisible && supportDom && getParent$2(getContainer) === document.body) {
-          openCount = visible && !prevVisible ? openCount + 1 : openCount - 1;
-        }
-
-        var getContainerIsFunc = typeof getContainer === 'function' && typeof prevGetContainer === 'function';
-
-        if (getContainerIsFunc ? getContainer.toString() !== prevGetContainer.toString() : getContainer !== prevGetContainer) {
-          _self.removeCurrentContainer();
-        }
-      }
-
-      return {
-        prevProps: props
-      };
     }
   }]);
 
@@ -16877,7 +16910,7 @@ function Mask$1(props) {
       visible = props.visible,
       maskProps = props.maskProps,
       motionName = props.motionName;
-  return React.createElement(CSSMotion, {
+  return /*#__PURE__*/React.createElement(CSSMotion, {
     key: "mask",
     visible: visible,
     motionName: motionName,
@@ -16885,7 +16918,7 @@ function Mask$1(props) {
   }, function (_ref) {
     var motionClassName = _ref.className,
         motionStyle = _ref.style;
-    return React.createElement("div", Object.assign({
+    return /*#__PURE__*/React.createElement("div", _extends({
       style: _objectSpread2(_objectSpread2({}, motionStyle), style),
       className: classnames("".concat(prefixCls, "-mask"), motionClassName)
     }, maskProps));
@@ -16903,10 +16936,10 @@ function getMotionName(prefixCls, transitionName, animationName) {
   return motionName;
 } // ================================ UUID ================================
 
-var uuid$1 = -1;
+var uuid$2 = -1;
 function getUUID() {
-  uuid$1 += 1;
-  return uuid$1;
+  uuid$2 += 1;
+  return uuid$2;
 } // =============================== Offset ===============================
 
 function getScroll$1(w, top) {
@@ -16938,13 +16971,21 @@ function offset(el) {
   return pos;
 }
 
+var MemoChildren = /*#__PURE__*/React.memo(function (_ref) {
+  var children = _ref.children;
+  return children;
+}, function (_, _ref2) {
+  var shouldUpdate = _ref2.shouldUpdate;
+  return !shouldUpdate;
+});
+
 var sentinelStyle = {
   width: 0,
   height: 0,
   overflow: 'hidden',
   outline: 'none'
 };
-var Content = React.forwardRef(function (props, ref) {
+var Content = /*#__PURE__*/React.forwardRef(function (props, ref) {
   var closable = props.closable,
       prefixCls = props.prefixCls,
       width = props.width,
@@ -16965,7 +17006,8 @@ var Content = React.forwardRef(function (props, ref) {
       ariaId = props.ariaId,
       onClose = props.onClose,
       onVisibleChanged = props.onVisibleChanged,
-      onClick = props.onClick,
+      onMouseDown = props.onMouseDown,
+      onMouseUp = props.onMouseUp,
       mousePosition = props.mousePosition;
   var sentinelStartRef = React.useRef();
   var sentinelEndRef = React.useRef();
@@ -16977,9 +17019,6 @@ var Content = React.forwardRef(function (props, ref) {
         var _sentinelStartRef$cur;
 
         (_sentinelStartRef$cur = sentinelStartRef.current) === null || _sentinelStartRef$cur === void 0 ? void 0 : _sentinelStartRef$cur.focus();
-      },
-      getDOM: function getDOM() {
-        return dialogRef.current;
       },
       changeActive: function changeActive(next) {
         var _document = document,
@@ -17022,7 +17061,7 @@ var Content = React.forwardRef(function (props, ref) {
   var footerNode;
 
   if (footer) {
-    footerNode = React.createElement("div", {
+    footerNode = /*#__PURE__*/React.createElement("div", {
       className: "".concat(prefixCls, "-footer")
     }, footer);
   }
@@ -17030,9 +17069,9 @@ var Content = React.forwardRef(function (props, ref) {
   var headerNode;
 
   if (title) {
-    headerNode = React.createElement("div", {
+    headerNode = /*#__PURE__*/React.createElement("div", {
       className: "".concat(prefixCls, "-header")
-    }, React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("div", {
       className: "".concat(prefixCls, "-title"),
       id: ariaId
     }, title));
@@ -17041,23 +17080,23 @@ var Content = React.forwardRef(function (props, ref) {
   var closer;
 
   if (closable) {
-    closer = React.createElement("button", {
+    closer = /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: onClose,
       "aria-label": "Close",
       className: "".concat(prefixCls, "-close")
-    }, closeIcon || React.createElement("span", {
+    }, closeIcon || /*#__PURE__*/React.createElement("span", {
       className: "".concat(prefixCls, "-close-x")
     }));
   }
 
-  var content = React.createElement("div", {
+  var content = /*#__PURE__*/React.createElement("div", {
     className: "".concat(prefixCls, "-content")
-  }, closer, headerNode, React.createElement("div", Object.assign({
+  }, closer, headerNode, /*#__PURE__*/React.createElement("div", _extends({
     className: "".concat(prefixCls, "-body"),
     style: bodyStyle
   }, bodyProps), children), footerNode);
-  return React.createElement(CSSMotion, {
+  return /*#__PURE__*/React.createElement(CSSMotion, {
     visible: visible,
     onVisibleChanged: onVisibleChanged,
     onAppearPrepare: onPrepare,
@@ -17069,19 +17108,22 @@ var Content = React.forwardRef(function (props, ref) {
   }, function (_ref, motionRef) {
     var motionClassName = _ref.className,
         motionStyle = _ref.style;
-    return React.createElement("div", {
+    return /*#__PURE__*/React.createElement("div", {
       key: "dialog-element",
       role: "document",
       ref: motionRef,
       style: _objectSpread2(_objectSpread2(_objectSpread2({}, motionStyle), style), contentStyle),
       className: classnames(prefixCls, className, motionClassName),
-      onClick: onClick
-    }, React.createElement("div", {
+      onMouseDown: onMouseDown,
+      onMouseUp: onMouseUp
+    }, /*#__PURE__*/React.createElement("div", {
       tabIndex: 0,
       ref: sentinelStartRef,
       style: sentinelStyle,
       "aria-hidden": "true"
-    }), modalRender ? modalRender(content) : content, React.createElement("div", {
+    }), /*#__PURE__*/React.createElement(MemoChildren, {
+      shouldUpdate: visible || forceRender
+    }, modalRender ? modalRender(content) : content), /*#__PURE__*/React.createElement("div", {
       tabIndex: 0,
       ref: sentinelEndRef,
       style: sentinelStyle,
@@ -17175,9 +17217,12 @@ function Dialog(props) {
   var contentClickRef = React.useRef(false);
   var contentTimeoutRef = React.useRef(); // We need record content click incase content popup out of dialog
 
-  var onContentClick = function onContentClick() {
+  var onContentMouseDown = function onContentMouseDown() {
     clearTimeout(contentTimeoutRef.current);
     contentClickRef.current = true;
+  };
+
+  var onContentMouseUp = function onContentMouseUp() {
     contentTimeoutRef.current = setTimeout(function () {
       contentClickRef.current = false;
     });
@@ -17189,7 +17234,9 @@ function Dialog(props) {
 
   if (maskClosable) {
     onWrapperClick = function onWrapperClick(e) {
-      if (!contentClickRef.current && !contains(contentRef.current.getDOM(), e.target)) {
+      if (contentClickRef.current) {
+        contentClickRef.current = false;
+      } else if (wrapperRef.current === e.target) {
         onInternalClose(e);
       }
     };
@@ -17225,9 +17272,9 @@ function Dialog(props) {
     };
   }, []); // ========================= Render =========================
 
-  return React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     className: "".concat(prefixCls, "-root")
-  }, React.createElement(Mask$1, {
+  }, /*#__PURE__*/React.createElement(Mask$1, {
     prefixCls: prefixCls,
     visible: mask && visible,
     motionName: getMotionName(prefixCls, maskTransitionName, maskAnimation),
@@ -17235,7 +17282,7 @@ function Dialog(props) {
       zIndex: zIndex
     }, maskStyle),
     maskProps: maskProps
-  }), React.createElement("div", Object.assign({
+  }), /*#__PURE__*/React.createElement("div", _extends({
     tabIndex: -1,
     onKeyDown: onWrapperKeyDown,
     className: classnames("".concat(prefixCls, "-wrap"), wrapClassName),
@@ -17248,8 +17295,9 @@ function Dialog(props) {
     }, wrapStyle), {}, {
       display: !animatedVisible ? 'none' : null
     })
-  }, wrapProps), React.createElement(Content, Object.assign({}, props, {
-    onClick: onContentClick,
+  }, wrapProps), /*#__PURE__*/React.createElement(Content, _extends({}, props, {
+    onMouseDown: onContentMouseDown,
+    onMouseUp: onContentMouseUp,
     ref: contentRef,
     closable: closable,
     ariaId: ariaIdRef.current,
@@ -17289,10 +17337,11 @@ var DialogWrap = function DialogWrap(props) {
   }, [visible]); // 渲染在当前 dom 里；
 
   if (getContainer === false) {
-    return React.createElement(Dialog, Object.assign({}, props, {
+    return /*#__PURE__*/React.createElement(Dialog, _extends({}, props, {
       getOpenCount: function getOpenCount() {
         return 2;
-      }
+      } // 不对 body 做任何操作。。
+
     }));
   } // Destroy on close will remove wrapped div
 
@@ -17301,12 +17350,12 @@ var DialogWrap = function DialogWrap(props) {
     return null;
   }
 
-  return React.createElement(PortalWrapper, {
+  return /*#__PURE__*/React.createElement(PortalWrapper, {
     visible: visible,
     forceRender: forceRender,
     getContainer: getContainer
   }, function (childProps) {
-    return React.createElement(Dialog, Object.assign({}, props, {
+    return /*#__PURE__*/React.createElement(Dialog, _extends({}, props, {
       destroyOnClose: destroyOnClose,
       afterClose: function afterClose() {
         _afterClose === null || _afterClose === void 0 ? void 0 : _afterClose();
@@ -17345,7 +17394,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var RotateLeftOutlined = function RotateLeftOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _RotateLeftOutlined.default
   }));
@@ -17353,7 +17402,7 @@ var RotateLeftOutlined = function RotateLeftOutlined(props, ref) {
 
 RotateLeftOutlined.displayName = 'RotateLeftOutlined';
 
-var _default = React.forwardRef(RotateLeftOutlined);
+var _default = /*#__PURE__*/React.forwardRef(RotateLeftOutlined);
 
 exports.default = _default;
 });
@@ -17402,7 +17451,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var RotateRightOutlined = function RotateRightOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _RotateRightOutlined.default
   }));
@@ -17410,7 +17459,7 @@ var RotateRightOutlined = function RotateRightOutlined(props, ref) {
 
 RotateRightOutlined.displayName = 'RotateRightOutlined';
 
-var _default = React.forwardRef(RotateRightOutlined);
+var _default = /*#__PURE__*/React.forwardRef(RotateRightOutlined);
 
 exports.default = _default;
 });
@@ -17459,7 +17508,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var ZoomInOutlined = function ZoomInOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _ZoomInOutlined.default
   }));
@@ -17467,7 +17516,7 @@ var ZoomInOutlined = function ZoomInOutlined(props, ref) {
 
 ZoomInOutlined.displayName = 'ZoomInOutlined';
 
-var _default = React.forwardRef(ZoomInOutlined);
+var _default = /*#__PURE__*/React.forwardRef(ZoomInOutlined);
 
 exports.default = _default;
 });
@@ -17516,7 +17565,7 @@ var _AntdIcon = interopRequireDefault(AntdIcon);
 // GENERATE BY ./scripts/generate.ts
 // DON NOT EDIT IT MANUALLY
 var ZoomOutOutlined = function ZoomOutOutlined(props, ref) {
-  return React.createElement(_AntdIcon.default, Object.assign({}, props, {
+  return /*#__PURE__*/React.createElement(_AntdIcon.default, Object.assign({}, props, {
     ref: ref,
     icon: _ZoomOutOutlined.default
   }));
@@ -17524,7 +17573,7 @@ var ZoomOutOutlined = function ZoomOutOutlined(props, ref) {
 
 ZoomOutOutlined.displayName = 'ZoomOutOutlined';
 
-var _default = React.forwardRef(ZoomOutOutlined);
+var _default = /*#__PURE__*/React.forwardRef(ZoomOutOutlined);
 
 exports.default = _default;
 });
