@@ -2,6 +2,9 @@
 
 A react component for uploading and preview multiple images
 
+# Notice
+I will actively work on this project after Feb 15, 2022.
+
 ## Table of Contents
 
 - [Installation](#installation)
